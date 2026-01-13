@@ -1,0 +1,21 @@
+{
+  "name": "@uniswap/v2-periphery-abis",
+  "version": "1.0.0",
+  "description": "Frontend-ready ABIs for Uniswap V2 Periphery",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "periphery",
+    "core",
+    "index.js",
+    "index.d.ts"
+  ],
+  "keywords": [
+    "uniswap",
+    "v2",
+    "abi",
+    "ethereum",
+    "defi"
+  ],
+  "license": "GPL-3.0-or-later"
+}
