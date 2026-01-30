@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import { validationCache } from './validationCache.js';
 
 /**
  * Check if a string is a valid Ethereum address
@@ -167,4 +168,131 @@ export function getErrorMessage(error) {
   }
 
   return 'Transaction failed - check console for details';
+}
+
+/**
+ * Validate a token by checking on-chain contract and ERC20 interface
+ *
+ * @param {string} tokenAddress - Token address to validate
+ * @param {object} provider - Ethers provider
+ * @returns {Promise<object>} Validation result { valid: boolean, error?: string }
+ */
+export async function validateToken(tokenAddress, provider) {
+  if (!provider) {
+    return { valid: false, error: 'No provider available' };
+  }
+
+  try {
+    // 1. Check address format
+    if (!isValidAddress(tokenAddress)) {
+      return { valid: false, error: 'Invalid address format' };
+    }
+
+    // 2. Get checksummed address
+    const checksummed = ethers.utils.getAddress(tokenAddress);
+
+    // 3. Check contract exists
+    const isContractValid = await isContract(checksummed, provider);
+    if (!isContractValid) {
+      return { valid: false, error: 'No contract at address' };
+    }
+
+    // 4. Check ERC20 interface (symbol and decimals)
+    const contract = new ethers.Contract(
+      checksummed,
+      [
+        'function symbol() view returns (string)',
+        'function decimals() view returns (uint8)'
+      ],
+      provider
+    );
+
+    // 5-second timeout per token to prevent hanging
+    await Promise.race([
+      Promise.all([contract.symbol(), contract.decimals()]),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout')), 5000)
+      )
+    ]);
+
+    return { valid: true };
+  } catch (error) {
+    return { valid: false, error: 'Invalid ERC20 contract' };
+  }
+}
+
+/**
+ * Validate multiple tokens in parallel batches
+ * Uses cache to avoid re-validating known tokens
+ * Skips famous tokens which are known to be valid
+ *
+ * @param {Array<string>} tokenAddresses - Array of token addresses to validate
+ * @param {object} provider - Ethers provider
+ * @param {Set<string>} famousTokens - Set of famous token addresses (lowercase) to skip validation
+ * @param {number} concurrency - Number of concurrent validations (default: 10)
+ * @returns {Promise<Map>} Map of address -> { valid: boolean, error?: string, cached?: boolean, famous?: boolean }
+ */
+export async function validateTokensBatch(
+  tokenAddresses,
+  provider,
+  famousTokens = new Set(),
+  concurrency = 10
+) {
+  const results = new Map();
+  const toValidate = [];
+
+  // Step 1: Check cache and famous tokens
+  for (const address of tokenAddresses) {
+    const lowerAddress = address.toLowerCase();
+
+    // Skip validation for famous tokens (known-good)
+    if (famousTokens.has(lowerAddress)) {
+      results.set(lowerAddress, { valid: true, cached: true, famous: true });
+      continue;
+    }
+
+    // Check cache
+    const cached = validationCache.get(lowerAddress);
+    if (cached !== null) {
+      results.set(lowerAddress, { ...cached, cached: true });
+      continue;
+    }
+
+    toValidate.push(address);
+  }
+
+  const cacheStats = validationCache.getStats();
+  console.log(`Validating tokens: ${famousTokens.size} famous, ${results.size - famousTokens.size} cached, ${toValidate.length} new. Cache stats:`, cacheStats);
+
+  // Step 2: Validate in parallel batches
+  if (toValidate.length > 0) {
+    const batches = [];
+    for (let i = 0; i < toValidate.length; i += concurrency) {
+      batches.push(toValidate.slice(i, i + concurrency));
+    }
+
+    for (const batch of batches) {
+      const validations = batch.map(address =>
+        validateToken(address, provider)
+          .then(result => ({ address, result }))
+          .catch(error => ({
+            address,
+            result: { valid: false, error: error.message }
+          }))
+      );
+
+      const batchResults = await Promise.allSettled(validations);
+
+      for (const settled of batchResults) {
+        if (settled.status === 'fulfilled') {
+          const { address, result } = settled.value;
+          const lowerAddress = address.toLowerCase();
+          results.set(lowerAddress, result);
+          validationCache.set(lowerAddress, result);
+        }
+      }
+    }
+  }
+
+  return results;
 }

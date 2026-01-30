@@ -12,6 +12,7 @@ import { computePairAddress } from '../utils/calculations';
 export function usePair(tokenA, tokenB, provider) {
   const [pairAddress, setPairAddress] = useState(null);
   const [reserves, setReserves] = useState({ reserve0: null, reserve1: null });
+  const [totalSupply, setTotalSupply] = useState(null);
   const [token0, setToken0] = useState(null);
   const [token1, setToken1] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -47,25 +48,51 @@ export function usePair(tokenA, tokenB, provider) {
    * Fetch current reserves and token order
    */
   const fetchReserves = useCallback(async () => {
+    console.log('🔍 Fetching reserves for pair:', pairAddress);
     if (!pairAddress || !provider) return;
 
     setLoading(true);
     setError(null);
 
     try {
+      // First check if pair exists
+      const code = await provider.getCode(pairAddress);
+      if (code === '0x') {
+        console.warn('⚠️ Pair does not exist on-chain:', pairAddress);
+        setError('Pair does not exist');
+        setLoading(false);
+        return;
+      }
+      
+      console.log('✅ Pair exists on-chain, fetching data...');
       const pairContract = getPairContract();
 
-      const [reservesData, token0Address] = await Promise.all([
+      const [reservesData, token0Address, token1Address, totalSupplyData] = await Promise.all([
         pairContract.getReserves(),
-        pairContract.token0()
+        pairContract.token0(),
+        pairContract.token1(),
+        pairContract.totalSupply()
       ]);
-
+      
+      console.log('📊 Pair Reserves Fetched:', {
+        pairAddress,
+        token0: token0Address,
+        token1: token1Address,
+        reserve0: ethers.utils.formatEther(reservesData[0]),
+        reserve1: ethers.utils.formatUnits(reservesData[1], 6), // Assuming token1 might be USDC
+        reserve0Raw: reservesData[0].toString(),
+        reserve1Raw: reservesData[1].toString(),
+        totalSupply: ethers.utils.formatEther(totalSupplyData),
+        blockTimestamp: reservesData[2],
+      });
+      
       setReserves({
         reserve0: reservesData[0],
         reserve1: reservesData[1]
       });
+      setTotalSupply(totalSupplyData);
       setToken0(token0Address);
-      setToken1(token0Address.toLowerCase() === tokenA.toLowerCase() ? tokenB : tokenA);
+      setToken1(token1Address);
 
       setLoading(false);
     } catch (err) {
@@ -145,6 +172,7 @@ export function usePair(tokenA, tokenB, provider) {
   return {
     pairAddress,
     reserves,
+    totalSupply,
     token0,
     token1,
     loading,

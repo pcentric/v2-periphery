@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import { useRouter } from '../hooks/useRouter';
 import { useToken } from '../hooks/useToken';
 import { usePair } from '../hooks/usePair';
-import { CONTRACT_ADDRESSES, DEFAULT_SLIPPAGE, TEST_TOKENS } from '../config/contracts';
+import { CONTRACT_ADDRESSES, DEFAULT_SLIPPAGE } from '../config/contracts';
 import {
   parseTokenAmount,
   formatTokenAmount,
@@ -11,7 +11,9 @@ import {
   calculatePriceImpact,
   getDeadline
 } from '../utils/calculations';
-
+import { useSafeSwap, useSwapValidation, useFilteredOutputTokens } from '../hooks/useSafeSwap';
+import { VERIFIED_TOKENS } from '../constants/tokens';                                                                                               
+                                          
 // Icons
 const SettingsIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -32,10 +34,154 @@ const ChevronDownIcon = () => (
   </svg>
 );
 
+const CloseIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M18 6L6 18M6 6l12 12"/>
+  </svg>
+);
+
+/**
+ * TokenListModal Component
+ * Displays a filterable list of tokens with search functionality
+ */
+function TokenListModal({
+  isOpen,
+  tokens,
+  selectedToken,
+  onSelectToken,
+  onClose,
+  title = 'Select a token'
+}) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const modalRef = React.useRef(null);
+
+  // Filter tokens based on search query (memoized to prevent unnecessary re-renders)
+  const filteredTokens = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return tokens;
+    }
+
+    const query = searchQuery.toLowerCase();
+    return tokens.filter(
+      token =>
+        token.symbol.toLowerCase().includes(query) ||
+        token.name.toLowerCase().includes(query) ||
+        token.address.toLowerCase().includes(query)
+    );
+  }, [searchQuery, tokens]);
+
+  // Close modal when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (modalRef.current && !modalRef.current.contains(event.target)) {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      // Prevent body scroll when modal is open
+      document.body.style.overflow = 'hidden';
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.body.style.overflow = 'auto';
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="token-modal-overlay">
+      <div className="token-modal" ref={modalRef}>
+        {/* Modal Header */}
+        <div className="token-modal-header">
+          <h3>{title}</h3>
+          <button
+            className="token-modal-close"
+            onClick={onClose}
+            aria-label="Close modal"
+          >
+            <CloseIcon />
+          </button>
+        </div>
+
+        {/* Search Input */}
+        <div className="token-modal-search">
+          <input
+            type="text"
+            placeholder="Search by symbol, name, or address"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            autoFocus
+            className="token-search-input"
+          />
+        </div>
+
+        {/* Token List */}
+        <div className="token-list">
+          {filteredTokens.length === 0 ? (
+            <div className="token-list-empty">
+              {tokens.length === 0 ? (
+                <p>Loading tokens...</p>
+              ) : (
+                <p>No tokens found matching "{searchQuery}"</p>
+              )}
+            </div>
+          ) : (
+            filteredTokens.map((token) => (
+              <button
+                key={token.id}
+                className={`token-list-item ${
+                  selectedToken?.id === token.id ? 'selected' : ''
+                }`}
+                onClick={() => {
+                  onSelectToken(token);
+                  onClose();
+                }}
+                aria-label={`Select ${token.symbol}`}
+              >
+                <div className="token-list-item-logo">
+                  {token.logoURI ? (
+                    <img
+                      src={token.logoURI}
+                      alt={token.symbol}
+                      className="token-logo-img"
+                      onError={(e) => {
+                        // Fallback to a simple background if logo fails to load
+                        e.target.style.display = 'none';
+                        e.target.parentElement.textContent = token.symbol.charAt(0);
+                      }}
+                    />
+                  ) : (
+                    <div className="token-logo-fallback">
+                      {token.symbol.charAt(0)}
+                    </div>
+                  )}
+                </div>
+
+                <div className="token-list-item-info">
+                  <div className="token-list-item-symbol">{token.symbol}</div>
+                  <div className="token-list-item-name">{token.name}</div>
+                </div>
+
+                {selectedToken?.id === token.id && (
+                  <div className="token-list-item-checkmark">✓</div>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function SwapComponent({ provider, signer }) {
-  // Token addresses
-  const [tokenIn, setTokenIn] = useState(TEST_TOKENS?.TOKEN_A || '');
-  const [tokenOut, setTokenOut] = useState(TEST_TOKENS?.TOKEN_B || '');
+  // Token addresses - Start with WETH and USDC as defaults
+  const [tokenIn, setTokenIn] = useState(VERIFIED_TOKENS.WETH.address);
+  const [tokenOut, setTokenOut] = useState(VERIFIED_TOKENS.USDC.address);
 
   // Amounts
   const [amountIn, setAmountIn] = useState('');
@@ -49,87 +195,218 @@ export function SwapComponent({ provider, signer }) {
   const [balanceIn, setBalanceIn] = useState(null);
   const [balanceOut, setBalanceOut] = useState(null);
 
+  // Modal state
+  const [activeModal, setActiveModal] = useState(null); // 'tokenIn' | 'tokenOut' | null
+
+  // Safe swap hook - provides verified tokens and pair mapping
+  const { tokens, pairMapping, loading: pairMappingLoading, error: pairMappingError, canSwap } = useSafeSwap();
+  
+  // Get filtered output tokens based on selected input token
+  const filteredOutputTokens = useFilteredOutputTokens(tokenIn, pairMapping);
+  
+  // Validate swap pair
+  const swapValidation = useSwapValidation(tokenIn, tokenOut, pairMapping);
+
   // Hooks
   const router = useRouter(provider, signer);
   const tokenInHook = useToken(tokenIn, provider, signer);
   const tokenOutHook = useToken(tokenOut, provider);
   const pair = usePair(tokenIn, tokenOut, provider);
 
+  // Log swap validation status
+  useEffect(() => {
+    if (!swapValidation.isValid && tokenInHook.isValid && tokenOutHook.isValid) {
+      console.warn(swapValidation.message);
+    }
+  }, [swapValidation, tokenInHook.isValid, tokenOutHook.isValid]);
+
   // Get user address
   useEffect(() => {
     if (signer) {
-      signer.getAddress().then(setUserAddress);
+      signer.getAddress()
+        .then(address => {
+          setUserAddress(address);
+          console.log('✅ Wallet connected:', address);
+        })
+        .catch(err => {
+          console.error('Failed to get wallet address:', err);
+          setUserAddress('');
+        });
+    } else {
+      setUserAddress('');
     }
   }, [signer]);
 
+  // Debug: Log configuration on mount
+  useEffect(() => {
+    console.log('🔧 SwapComponent Configuration:', {
+      hasProvider: !!provider,
+      hasSigner: !!signer,
+      routerAddress: CONTRACT_ADDRESSES?.ROUTER || 'NOT SET',
+      defaultSlippage: DEFAULT_SLIPPAGE,
+    });
+
+    if (!CONTRACT_ADDRESSES?.ROUTER) {
+      console.error('⚠️ WARNING: Router address is not configured!');
+      console.error('Check CONTRACT_ADDRESSES in config/contracts.js');
+    }
+  }, []);
+
   // Fetch balances
   useEffect(() => {
-    if (!userAddress) return;
+    if (!userAddress) {
+      
+      setBalanceIn(null);
+      setBalanceOut(null);
+      return;
+    }
+
+    let isCancelled = false;
 
     const fetchBalances = async () => {
+      // Fetch input token balance
       if (tokenInHook.isValid) {
         try {
           const bal = await tokenInHook.getBalance(userAddress);
-          setBalanceIn(bal);
+          if (!isCancelled) {
+            setBalanceIn(bal);
+          }
         } catch (e) {
-          setBalanceIn(null);
+          console.error('Failed to fetch input token balance:', e.message);
+          if (!isCancelled) {
+            setBalanceIn(null);
+          }
         }
+      } else {
+        setBalanceIn(null);
       }
+
+      // Fetch output token balance
       if (tokenOutHook.isValid) {
         try {
           const bal = await tokenOutHook.getBalance(userAddress);
-          setBalanceOut(bal);
+          if (!isCancelled) {
+            setBalanceOut(bal);
+          }
         } catch (e) {
-          setBalanceOut(null);
+          console.error('Failed to fetch output token balance:', e.message);
+          if (!isCancelled) {
+            setBalanceOut(null);
+          }
         }
+      } else {
+        setBalanceOut(null);
       }
     };
 
     fetchBalances();
-  }, [userAddress, tokenInHook.isValid, tokenOutHook.isValid, tokenInHook, tokenOutHook]);
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [userAddress, tokenIn, tokenOut, tokenInHook.isValid, tokenOutHook.isValid]);
 
   // Check approval status
   useEffect(() => {
-    if (!tokenIn || !userAddress || !amountIn || !tokenInHook.isValid) {
+    if (!tokenIn || !userAddress || !amountIn || !tokenInHook.isValid || !CONTRACT_ADDRESSES?.ROUTER) {
       setIsApproved(false);
       return;
     }
+
+    // Validate amount
+    const amountValue = parseFloat(amountIn);
+    if (isNaN(amountValue) || amountValue <= 0) {
+      setIsApproved(false);
+      return;
+    }
+
+    let isCancelled = false;
 
     const checkApproval = async () => {
       try {
         const amount = parseTokenAmount(amountIn, tokenInHook.decimals);
         const allowance = await tokenInHook.getAllowance(userAddress, CONTRACT_ADDRESSES.ROUTER);
-        setIsApproved(allowance.gte(amount));
+        
+        if (!isCancelled) {
+          const approved = allowance.gte(amount);
+          setIsApproved(approved);
+          console.log('Approval status:', approved ? '✅ Approved' : '❌ Not approved');
+        }
       } catch (err) {
-        setIsApproved(false);
+        console.error('Failed to check approval:', err.message);
+        if (!isCancelled) {
+          setIsApproved(false);
+        }
       }
     };
 
-    checkApproval();
-  }, [tokenIn, userAddress, amountIn, tokenInHook]);
+    // Debounce approval check
+    const timeoutId = setTimeout(() => {
+      checkApproval();
+    }, 500);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [tokenIn, userAddress, amountIn, tokenInHook.decimals, tokenInHook.isValid]);
 
   // Calculate output amount
   useEffect(() => {
-    if (!amountIn || !pair.reserves.reserve0 || !pair.reserves.reserve1 || 
-        !tokenInHook.isValid || !tokenOutHook.isValid) {
+    // Early return if essential data is missing
+    if (!amountIn || !tokenInHook.isValid || !tokenOutHook.isValid) {
       setAmountOut('');
       return;
     }
 
+    // Validate amount is a number
+    const amountValue = parseFloat(amountIn);
+    if (isNaN(amountValue) || amountValue <= 0) {
+      setAmountOut('');
+      return;
+    }
+
+    // Calculate output using router (doesn't require pair reserves)
+    let isCancelled = false;
     const calculateOutput = async () => {
       try {
         const amountInParsed = parseTokenAmount(amountIn, tokenInHook.decimals);
         const path = [tokenIn, tokenOut];
+        
+        console.log('🔄 Calculating output for:', {
+          amountIn,
+          tokenIn: tokenInHook.symbol,
+          tokenOut: tokenOutHook.symbol,
+          path,
+        });
+        
         const amounts = await router.getAmountsOut(amountInParsed, path);
-        const output = formatTokenAmount(amounts[1], tokenOutHook.decimals);
-        setAmountOut(output);
+        
+        // Only update if this effect hasn't been cancelled
+        if (!isCancelled && amounts && amounts[1]) {
+          const output = formatTokenAmount(amounts[1], tokenOutHook.decimals);
+          console.log('✅ Output calculated:', output, tokenOutHook.symbol);
+          setAmountOut(output);
+        }
       } catch (err) {
-        setAmountOut('');
+        console.error('❌ Failed to calculate output:', err.message);
+        if (!isCancelled) {
+          setAmountOut('');
+        }
       }
     };
 
-    calculateOutput();
-  }, [amountIn, tokenIn, tokenOut, pair, router, tokenInHook, tokenOutHook]);
+    // Debounce calculation to reduce API calls
+    const timeoutId = setTimeout(() => {
+      calculateOutput();
+    }, 300); // 300ms debounce
+
+    // Cleanup function
+    return () => {
+      isCancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [amountIn, tokenIn, tokenOut, tokenInHook.decimals, tokenInHook.isValid, tokenInHook.symbol, tokenOutHook.decimals, tokenOutHook.isValid, tokenOutHook.symbol, router]);
 
   // Calculate price impact
   const priceImpact = useMemo(() => {
@@ -160,14 +437,92 @@ export function SwapComponent({ provider, signer }) {
     }
   };
 
+  // Handle token selection from modal
+  const handleTokenSelect = (token, type) => {
+    // Prevent selecting the same token for both fields
+    if (type === 'in' && tokenOut.toLowerCase() === token.address.toLowerCase()) {
+      console.warn('Cannot select the same token for both input and output');
+      return;
+    }
+    if (type === 'out' && tokenIn.toLowerCase() === token.address.toLowerCase()) {
+      console.warn('Cannot select the same token for both input and output');
+      return;
+    }
+
+    // Update token address
+    if (type === 'in') {
+      setTokenIn(token.address);
+    } else {
+      setTokenOut(token.address);
+    } 
+
+    // Close modal
+    setActiveModal(null);
+  };
+
   // Handle approval
   const handleApprove = async () => {
     try {
+      // Validation checks
+      if (!signer) {
+        console.error('No signer available. Please connect your wallet.');
+        alert('Please connect your wallet first');
+        return;
+      }
+
+      if (!userAddress) {
+        console.error('User address not set');
+        alert('Unable to get wallet address. Please reconnect your wallet.');
+        return;
+      }
+
+      if (!CONTRACT_ADDRESSES?.ROUTER) {
+        console.error('Router address not configured');
+        alert('Router contract address is not configured. Please check your setup.');
+        return;
+      }
+
+      if (!tokenInHook.isValid) {
+        console.error('Input token is not valid');
+        alert('Please select a valid input token');
+        return;
+      }
+
+      if (!amountIn || parseFloat(amountIn) <= 0) {
+        console.error('Invalid amount');
+        alert('Please enter a valid amount');
+        return;
+      }
+
+      console.log('Approving token...', {
+        token: tokenIn,
+        symbol: tokenInHook.symbol,
+        spender: CONTRACT_ADDRESSES.ROUTER,
+        amount: amountIn,
+      });
+
       const amount = parseTokenAmount(amountIn, tokenInHook.decimals);
       await tokenInHook.ensureApproval(userAddress, CONTRACT_ADDRESSES.ROUTER, amount);
+      
+      console.log('✅ Approval successful');
       setIsApproved(true);
     } catch (err) {
       console.error('Approval failed:', err);
+      
+      // User-friendly error messages
+      let errorMessage = 'Token approval failed. ';
+      
+      if (err.code === 'ACTION_REJECTED' || err.code === 4001) {
+        errorMessage += 'You rejected the transaction.';
+      } else if (err.message?.includes('insufficient funds')) {
+        errorMessage += 'Insufficient funds for gas fee.';
+      } else if (err.message?.includes('ENS')) {
+        errorMessage += 'Configuration error. Please check your setup.';
+      } else {
+        errorMessage += 'Please try again.';
+      }
+      
+      alert(errorMessage);
     }
   };
 
@@ -176,6 +531,33 @@ export function SwapComponent({ provider, signer }) {
     if (!isApproved) return;
 
     try {
+      // Validation checks
+      if (!signer) {
+        console.error('No signer available');
+        alert('Please connect your wallet first');
+        return;
+      }
+
+      if (!userAddress) {
+        console.error('User address not set');
+        alert('Unable to get wallet address. Please reconnect your wallet.');
+        return;
+      }
+
+      if (!tokenInHook.isValid || !tokenOutHook.isValid) {
+        console.error('Invalid tokens');
+        alert('Please select valid tokens');
+        return;
+      }
+
+      console.log('Executing swap...', {
+        tokenIn: tokenInHook.symbol,
+        tokenOut: tokenOutHook.symbol,
+        amountIn,
+        amountOut,
+        slippage: slippage / 100 + '%',
+      });
+
       const amountInParsed = parseTokenAmount(amountIn, tokenInHook.decimals);
       const amountOutParsed = parseTokenAmount(amountOut, tokenOutHook.decimals);
       const amountOutMin = applySlippage(amountOutParsed, slippage, true);
@@ -183,6 +565,8 @@ export function SwapComponent({ provider, signer }) {
       const deadline = getDeadline();
 
       await router.swapExactTokensForTokens(amountInParsed, amountOutMin, path, deadline);
+
+      console.log('✅ Swap successful');
 
       // Reset and refresh
       setAmountIn('');
@@ -199,26 +583,57 @@ export function SwapComponent({ provider, signer }) {
       }
     } catch (err) {
       console.error('Swap failed:', err);
+      
+      // User-friendly error messages
+      let errorMessage = 'Swap failed. ';
+      
+      if (err.code === 'ACTION_REJECTED' || err.code === 4001) {
+        errorMessage += 'You rejected the transaction.';
+      } else if (err.message?.includes('insufficient funds')) {
+        errorMessage += 'Insufficient funds for gas fee.';
+      } else if (err.message?.includes('slippage')) {
+        errorMessage += 'Price changed too much. Try increasing slippage tolerance.';
+      } else if (err.message?.includes('INSUFFICIENT_OUTPUT_AMOUNT')) {
+        errorMessage += 'Insufficient output amount. Try increasing slippage tolerance.';
+      } else {
+        errorMessage += 'Please try again.';
+      }
+      
+      alert(errorMessage);
     }
   };
 
   // Button state
   const getButtonState = () => {
+    // Check wallet connection first
+    if (!signer || !userAddress) {
+      return { text: 'Connect Wallet', disabled: true };
+    }
+    
     if (!tokenInHook.isValid || !tokenOutHook.isValid) {
       return { text: 'Select a token', disabled: true };
     }
+    
+    if (!swapValidation.isValid) {
+      return { text: swapValidation.message || 'No swap pair available', disabled: true };
+    }
+    
     if (!amountIn || parseFloat(amountIn) === 0) {
       return { text: 'Enter an amount', disabled: true };
     }
+    
     if (balanceIn && parseTokenAmount(amountIn, tokenInHook.decimals).gt(balanceIn)) {
       return { text: `Insufficient ${tokenInHook.symbol} balance`, disabled: true };
     }
+    
     if (!isApproved) {
       return { text: `Approve ${tokenInHook.symbol}`, disabled: false, isApprove: true };
     }
+    
     if (router.loading) {
       return { text: 'Swapping...', disabled: true, loading: true };
     }
+    
     return { text: 'Swap', disabled: false };
   };
 
@@ -288,13 +703,19 @@ export function SwapComponent({ provider, signer }) {
               onChange={(e) => setAmountIn(e.target.value)}
             />
             {tokenInHook.isValid ? (
-              <button className="token-selector">
+              <button
+                className="token-selector"
+                onClick={() => setActiveModal('tokenIn')}
+              >
                 <div className="token-icon" />
                 <span className="token-symbol">{tokenInHook.symbol}</span>
                 <ChevronDownIcon />
               </button>
             ) : (
-              <button className="token-selector select-token">
+              <button
+                className="token-selector select-token"
+                onClick={() => setActiveModal('tokenIn')}
+              >
                 Select
                 <ChevronDownIcon />
               </button>
@@ -341,13 +762,19 @@ export function SwapComponent({ provider, signer }) {
               readOnly
             />
             {tokenOutHook.isValid ? (
-              <button className="token-selector">
+              <button
+                className="token-selector"
+                onClick={() => setActiveModal('tokenOut')}
+              >
                 <div className="token-icon" />
                 <span className="token-symbol">{tokenOutHook.symbol}</span>
                 <ChevronDownIcon />
               </button>
             ) : (
-              <button className="token-selector select-token">
+              <button
+                className="token-selector select-token"
+                onClick={() => setActiveModal('tokenOut')}
+              >
                 Select
                 <ChevronDownIcon />
               </button>
@@ -408,12 +835,45 @@ export function SwapComponent({ provider, signer }) {
         </button>
       </div>
 
-      {/* Error Message */}
+      {/* Loading/Error Messages */}
+      {pairMappingLoading && (
+        <div className="swap-body">
+          <div className="info-message">Loading liquidity pools...</div>
+        </div>
+      )}
+      
+      {pairMappingError && (
+        <div className="swap-body">
+          <div className="error-message">
+            Failed to load liquidity data: {pairMappingError}
+          </div>
+        </div>
+      )}
+      
       {router.error && (
         <div className="swap-body">
           <div className="error-message">{router.error}</div>
         </div>
       )}
+
+      {/* Token List Modals */}
+      <TokenListModal
+        isOpen={activeModal === 'tokenIn'}
+        tokens={tokens}
+        selectedToken={tokenInHook.isValid ? { id: tokenIn.toLowerCase(), ...tokenInHook } : null}
+        onSelectToken={(token) => handleTokenSelect(token, 'in')}
+        onClose={() => setActiveModal(null)}
+        title="Select input token"
+      />
+
+      <TokenListModal
+        isOpen={activeModal === 'tokenOut'}
+        tokens={filteredOutputTokens}
+        selectedToken={tokenOutHook.isValid ? { id: tokenOut.toLowerCase(), ...tokenOutHook } : null}
+        onSelectToken={(token) => handleTokenSelect(token, 'out')}
+        onClose={() => setActiveModal(null)}
+        title={tokenIn ? `Select output token (compatible with ${tokenInHook.symbol || 'selected token'})` : 'Select output token'}
+      />
     </div>
   );
 }

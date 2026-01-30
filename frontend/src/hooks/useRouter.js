@@ -237,15 +237,49 @@ export function useRouter(provider, signer) {
    */
   const getAmountsOut = useCallback(
     async (amountIn, path) => {
+      if (!provider) {
+        throw new Error('Provider not available');
+      }
+
+      if (!CONTRACT_ADDRESSES?.ROUTER) {
+        throw new Error('Router address not configured');
+      }
+
+      if (!path || path.length < 2) {
+        throw new Error('Invalid path: must have at least 2 tokens');
+      }
+
       try {
         const router = new ethers.Contract(
           CONTRACT_ADDRESSES.ROUTER,
           CONTRACT_ABIS.ROUTER,
           provider
         );
-        return await router.getAmountsOut(amountIn, path);
+        
+        console.log('📊 Querying router.getAmountsOut:', {
+          router: CONTRACT_ADDRESSES.ROUTER,
+          amountIn: amountIn.toString(),
+          path,
+        });
+        
+        const amounts = await router.getAmountsOut(amountIn, path);
+        
+        console.log('📊 Router returned amounts:', amounts.map(a => a.toString()));
+        
+        return amounts;
       } catch (err) {
-        throw new Error(`Failed to get amounts out: ${err.message}`);
+        console.error('❌ getAmountsOut failed:', err);
+        
+        // Provide helpful error messages
+        if (err.message?.includes('INSUFFICIENT_LIQUIDITY')) {
+          throw new Error('No liquidity available for this pair');
+        } else if (err.message?.includes('INVALID_PATH')) {
+          throw new Error('Invalid token pair');
+        } else if (err.code === 'CALL_EXCEPTION') {
+          throw new Error('Pool not found or router misconfigured');
+        } else {
+          throw new Error(`Failed to calculate output: ${err.message}`);
+        }
       }
     },
     [provider]

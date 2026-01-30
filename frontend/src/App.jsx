@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { SwapComponent } from './components/SwapComponent';
 import { LiquidityComponent } from './components/LiquidityComponent';
+import { PoolDiagnostic } from './components/PoolDiagnostic';
 import { NETWORK_CONFIG } from './config/contracts';
 import './assets/styles.css';
 
@@ -96,6 +97,8 @@ function App() {
     };
   }, [account]);
 
+  console.log("NETWORK_CONFIG", NETWORK_CONFIG, chainId)
+
   const isConnected = account && chainId === NETWORK_CONFIG.chainId;
 
   return (
@@ -120,6 +123,13 @@ function App() {
             onClick={() => setActiveTab('liquidity')}
           >
             Pool
+          </button>
+          <button 
+            className={activeTab === 'diagnostic' ? 'active' : ''}
+            onClick={() => setActiveTab('diagnostic')}
+            style={{ fontSize: '13px' }}
+          >
+            🔍 Debug
           </button>
         </nav>
 
@@ -146,7 +156,11 @@ function App() {
 
       {/* Main Content */}
       <main className="app-main">
-        {isConnected ? (
+        {activeTab === 'diagnostic' ? (
+          <div className="swap-card">
+            <PoolDiagnostic provider={provider} />
+          </div>
+        ) : isConnected ? (
           <>
             {activeTab === 'swap' && (
               <SwapComponent provider={provider} signer={signer} />

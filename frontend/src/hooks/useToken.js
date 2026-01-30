@@ -50,13 +50,13 @@ export function useToken(tokenAddress, provider, signer = null) {
 
     try {
       // First check if there's contract code at the address
-      const code = await provider.getCode(tokenAddress);
-      if (code === '0x' || code === '0x0') {
-        setError('No contract found at this address');
-        setIsValid(false);
-        setLoading(false);
-        return;
-      }
+      // const code = await provider.getCode(tokenAddress);
+      // if (code === '0x' || code === '0x0') {
+      //   setError('No contract found at this address');
+      //   setIsValid(false);
+      //   setLoading(false);
+      //   return;
+      // }
 
       // Create contract with flexible ABI that handles both string and bytes32 returns
       const flexibleAbi = [
