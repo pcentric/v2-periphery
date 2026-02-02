@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ethers } from 'ethers';
+import { useWeb3React } from '../providers/Web3Provider';
 import { useRouter } from '../hooks/useRouter';
 import { useToken } from '../hooks/useToken';
 import { usePair } from '../hooks/usePair';
@@ -183,7 +184,14 @@ function TokenListModal({
  * - LP token decimals: Fetched from pair contract via lpDecimals state
  * - No hardcoded decimals! All values from blockchain contracts
  */
-export function LiquidityComponent({ provider, signer }) {
+export function LiquidityComponent() {
+  // Use Web3React hook for provider and account
+  const { account: userAddress, library, chainId, active } = useWeb3React();
+  
+  // Extract provider and signer from library
+  const provider = library;
+  const signer = library && userAddress ? library.getSigner() : null;
+
   // Token addresses
   const [tokenA, setTokenA] = useState(TEST_TOKENS?.TOKEN_A || '');
   const [tokenB, setTokenB] = useState(TEST_TOKENS?.TOKEN_B || '');
@@ -205,7 +213,6 @@ export function LiquidityComponent({ provider, signer }) {
   const [isApprovedB, setIsApprovedB] = useState(false);
   const [balanceA, setBalanceA] = useState(null);
   const [balanceB, setBalanceB] = useState(null);
-  const [userAddress, setUserAddress] = useState('');
   const [approvalCheckTrigger, setApprovalCheckTrigger] = useState(0); // Force re-check approvals
 
   // Modal state
@@ -237,22 +244,7 @@ export function LiquidityComponent({ provider, signer }) {
   // Get verified token list and pair mapping
   const { tokens, pairMapping, loading: tokensLoading, error: tokensError } = useSafeSwap();
 
-  // Get user address
-  useEffect(() => {
-    if (signer) {
-      signer.getAddress()
-        .then(address => {
-          setUserAddress(address);
-          console.log('✅ Wallet connected:', address);
-        })
-        .catch(err => {
-          console.error('Failed to get wallet address:', err);
-          setUserAddress('');
-        });
-    } else {
-      setUserAddress('');
-    }
-  }, [signer]);
+
 
   // Debug: Log configuration on mount
   useEffect(() => {

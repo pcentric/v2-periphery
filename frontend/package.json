@@ -1,8 +1,8 @@
 {
-  "name": "uniswap-v2-frontend-example",
+  "name": "@uniswap/v2-web",
   "version": "1.0.0",
-  "description": "Example frontend integration for Uniswap V2 Periphery contracts",
-  "main": "index.js",
+  "description": "Uniswap V2 Frontend with RainbowKit and wagmi",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,9 +11,12 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "ethers": "^5.7.2",
+    "@rainbow-me/rainbowkit": "^2.1.7",
+    "@tanstack/react-query": "^5.62.11",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "viem": "^2.21.52",
+    "wagmi": "^2.14.9"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
@@ -27,7 +30,9 @@
     "defi",
     "ethereum",
     "web3",
-    "dex"
+    "dex",
+    "wagmi",
+    "rainbowkit"
   ],
   "author": "",
   "license": "GPL-3.0-or-later"

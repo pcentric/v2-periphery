@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { ethers } from 'ethers';
+import React, { useState } from 'react';
+import { useAccount, useChainId, useSwitchChain } from 'wagmi';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { SwapComponent } from './components/SwapComponent';
 import { LiquidityComponent } from './components/LiquidityComponent';
 import { PoolDiagnostic } from './components/PoolDiagnostic';
-import { NETWORK_CONFIG } from './config/contracts';
+import { ImpersonatorModal } from './components/ImpersonatorModal';
+import { getNetworkByChainId } from './config/contracts';
+import { chains } from './config/wagmi';
 import './assets/styles.css';
 
 // Uniswap Logo SVG
@@ -16,90 +19,9 @@ const UniswapLogo = () => (
 );
 
 function App() {
-  const [provider, setProvider] = useState(null);
-  const [signer, setSigner] = useState(null);
-  const [account, setAccount] = useState('');
-  const [chainId, setChainId] = useState(null);
   const [activeTab, setActiveTab] = useState('swap');
-
-  const connectWallet = async () => {
-    try {
-      if (!window.ethereum) {
-        alert('Please install MetaMask or another Web3 wallet');
-        return;
-      }
-
-      await window.ethereum.request({ method: 'eth_requestAccounts' });
-
-      const web3Provider = new ethers.providers.Web3Provider(window.ethereum);
-      const web3Signer = web3Provider.getSigner();
-      const address = await web3Signer.getAddress();
-      const network = await web3Provider.getNetwork();
-
-      setProvider(web3Provider);
-      setSigner(web3Signer);
-      setAccount(address);
-      setChainId(network.chainId);
-
-      if (network.chainId !== NETWORK_CONFIG.chainId) {
-        try {
-          await window.ethereum.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: `0x${NETWORK_CONFIG.chainId.toString(16)}` }],
-          });
-        } catch (switchError) {
-          if (switchError.code === 4902) {
-            await window.ethereum.request({
-              method: 'wallet_addEthereumChain',
-              params: [{
-                chainId: `0x${NETWORK_CONFIG.chainId.toString(16)}`,
-                chainName: NETWORK_CONFIG.name,
-                rpcUrls: [NETWORK_CONFIG.rpcUrl],
-                nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 }
-              }],
-            });
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Failed to connect wallet:', error);
-    }
-  };
-
-  const disconnectWallet = () => {
-    setProvider(null);
-    setSigner(null);
-    setAccount('');
-    setChainId(null);
-  };
-
-  useEffect(() => {
-    if (!window.ethereum) return;
-
-    const handleAccountsChanged = (accounts) => {
-      if (accounts.length === 0) {
-        disconnectWallet();
-      } else if (accounts[0] !== account) {
-        connectWallet();
-      }
-    };
-
-    const handleChainChanged = () => {
-      window.location.reload();
-    };
-
-    window.ethereum.on('accountsChanged', handleAccountsChanged);
-    window.ethereum.on('chainChanged', handleChainChanged);
-
-    return () => {
-      window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-      window.ethereum.removeListener('chainChanged', handleChainChanged);
-    };
-  }, [account]);
-
-  console.log("NETWORK_CONFIG", NETWORK_CONFIG, chainId)
-
-  const isConnected = account && chainId === NETWORK_CONFIG.chainId;
+  const [showImpersonator, setShowImpersonator] = useState(false);
+  const { isConnected } = useAccount();
 
   return (
     <div className="app">
@@ -112,19 +34,19 @@ function App() {
 
         {/* Navigation */}
         <nav className="nav-links">
-          <button 
+          <button
             className={activeTab === 'swap' ? 'active' : ''}
             onClick={() => setActiveTab('swap')}
           >
             Swap
           </button>
-          <button 
+          <button
             className={activeTab === 'liquidity' ? 'active' : ''}
             onClick={() => setActiveTab('liquidity')}
           >
             Pool
           </button>
-          <button 
+          <button
             className={activeTab === 'diagnostic' ? 'active' : ''}
             onClick={() => setActiveTab('diagnostic')}
             style={{ fontSize: '13px' }}
@@ -135,22 +57,17 @@ function App() {
 
         {/* Wallet Section */}
         <div className="wallet-section">
-          {account && (
-            <div className="network-badge">
-              {NETWORK_CONFIG.name}
-            </div>
-          )}
+          {/* Impersonator Button */}
+          <button
+            onClick={() => setShowImpersonator(true)}
+            className="impersonator-button"
+            title="Impersonate any account for testing"
+          >
+            🎭
+          </button>
           
-          {!account ? (
-            <button className="connect-button" onClick={connectWallet}>
-              Connect Wallet
-            </button>
-          ) : (
-            <button className="account-button" onClick={disconnectWallet}>
-              <div className="account-avatar" />
-              {account.slice(0, 6)}...{account.slice(-4)}
-            </button>
-          )}
+          {/* RainbowKit Connect Button */}
+          <ConnectButton />
         </div>
       </header>
 
@@ -158,24 +75,22 @@ function App() {
       <main className="app-main">
         {activeTab === 'diagnostic' ? (
           <div className="swap-card">
-            <PoolDiagnostic provider={provider} />
+            <PoolDiagnostic />
           </div>
         ) : isConnected ? (
           <>
             {activeTab === 'swap' && (
-              <SwapComponent provider={provider} signer={signer} />
+              <SwapComponent />
             )}
             {activeTab === 'liquidity' && (
-              <LiquidityComponent provider={provider} signer={signer} />
+              <LiquidityComponent />
             )}
           </>
         ) : (
           <div className="swap-card">
             <div className="connect-prompt">
               <p>Connect a wallet to swap tokens</p>
-              <button className="connect-button" onClick={connectWallet}>
-                Connect Wallet
-              </button>
+              <ConnectButton />
             </div>
           </div>
         )}
@@ -185,6 +100,12 @@ function App() {
       <footer className="app-footer">
         <p>Uniswap V2 · Built on Ethereum</p>
       </footer>
+
+      {/* Impersonator Modal */}
+      <ImpersonatorModal 
+        isOpen={showImpersonator} 
+        onClose={() => setShowImpersonator(false)} 
+      />
     </div>
   );
 }

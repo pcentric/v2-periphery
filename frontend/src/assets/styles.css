@@ -121,6 +121,25 @@ body {
   gap: 0.75rem;
 }
 
+.impersonator-button {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  padding: 0.625rem 1rem;
+  border-radius: 12px;
+  font-size: 1.25rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.impersonator-button:hover {
+  background: var(--pink-dim);
+  border-color: var(--pink-primary);
+  transform: translateY(-1px);
+}
+
 .network-badge {
   background: var(--bg-tertiary);
   padding: 0.5rem 0.875rem;

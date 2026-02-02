@@ -27,16 +27,16 @@ const NETWORKS = {
   'arbitrum': {
     name: 'Arbitrum Mainnet',
     chainId: 42161,
-    rpcUrl: process.env.VITE_ARBITRUM_MAINNET_RPC_URL || 'https://arb1.arbitrum.io/rpc',
+    rpcUrl: 'https://arb1.arbitrum.io/rpc',
     contracts: {
-      WETH: process.env.VITE_WETH_ARBITRUM_MAINNET || '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1',
+      WETH: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1',
       
       // NOTE: Official Uniswap V2 is NOT deployed on Arbitrum
       // Using SushiSwap (V2-compatible) as it has the same interface
       // SushiSwap Factory on Arbitrum
-      FACTORY: process.env.VITE_FACTORY_ARBITRUM_MAINNET || '0xc35DADB65012eC5796536bD9864eD8773aBc74C4',
+      FACTORY: '0xc35DADB65012eC5796536bD9864eD8773aBc74C4',
       // SushiSwap Router on Arbitrum (V2-compatible)
-      ROUTER: process.env.VITE_ROUTER_ARBITRUM_MAINNET || '0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506',
+      ROUTER: '0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506',
       
       // Alternative: Uniswap V3 (requires different ABI and code)
       // FACTORY: '0x1F98431c8aD98523631AE4a59f267346ea31F984',
@@ -49,11 +49,11 @@ const NETWORKS = {
   'arbitrum-sepolia': {
     name: 'Arbitrum Sepolia',
     chainId: 421614,
-    rpcUrl: process.env.VITE_ARBITRUM_SEPOLIA_RPC_URL || 'https://sepolia-rollup.arbitrum.io/rpc',
+    rpcUrl: 'https://sepolia-rollup.arbitrum.io/rpc',
     contracts: {
-      WETH: process.env.VITE_WETH_ARBITRUM_SEPOLIA || '0x980B62Da83eFf3D4576C647993b0c1D7faf17c7c',
-      FACTORY: process.env.VITE_FACTORY_ARBITRUM_SEPOLIA || '',
-      ROUTER: process.env.VITE_ROUTER_ARBITRUM_SEPOLIA || ''
+      WETH: '0x980B62Da83eFf3D4576C647993b0c1D7faf17c7c',
+      FACTORY: '',
+      ROUTER: ''
     },
     testTokens: {},
     initCodeHash: '0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f'
@@ -61,7 +61,7 @@ const NETWORKS = {
 };
 
 // Get active network from environment or default to localhost
-const ACTIVE_NETWORK = process.env.VITE_NETWORK || 'arbitrum';
+const ACTIVE_NETWORK = 'arbitrum';
 const activeNetworkConfig = NETWORKS[ACTIVE_NETWORK] || NETWORKS.localhost;
 
 // Exported network configuration

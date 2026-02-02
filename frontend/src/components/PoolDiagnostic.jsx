@@ -5,17 +5,20 @@
 
 import React, { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
+import { useWeb3React } from '../providers/Web3Provider';
 import { VERIFIED_TOKENS } from '../constants/tokens';
 import { CONTRACT_ADDRESSES } from '../config/contracts';
 
-export function PoolDiagnostic({ provider }) {
+export function PoolDiagnostic() {
+  const { library } = useWeb3React();
+  const provider = library;
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const checkPools = async () => {
     if (!provider) {
-      setError('Provider not available. Please connect wallet.');
+      setError('Provider not available. Please wait...');
       return;
     }
 

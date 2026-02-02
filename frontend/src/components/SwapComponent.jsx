@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ethers } from 'ethers';
+import { useWeb3React } from '../providers/Web3Provider';
 import { useRouter } from '../hooks/useRouter';
 import { useToken } from '../hooks/useToken';
 import { usePair } from '../hooks/usePair';
@@ -178,7 +179,14 @@ function TokenListModal({
   );
 }
 
-export function SwapComponent({ provider, signer }) {
+export function SwapComponent() {
+  // Use Web3React hook for provider and account
+  const { account: userAddress, library, chainId, active } = useWeb3React();
+  
+  // Extract provider and signer from library
+  const provider = library;
+  const signer = library && userAddress ? library.getSigner() : null;
+
   // Token addresses - Start with WETH and USDC as defaults
   const [tokenIn, setTokenIn] = useState(VERIFIED_TOKENS.WETH.address);
   const [tokenOut, setTokenOut] = useState(VERIFIED_TOKENS.USDC.address);
@@ -191,7 +199,6 @@ export function SwapComponent({ provider, signer }) {
   const [slippage, setSlippage] = useState(DEFAULT_SLIPPAGE);
   const [showSettings, setShowSettings] = useState(false);
   const [isApproved, setIsApproved] = useState(false);
-  const [userAddress, setUserAddress] = useState('');
   const [balanceIn, setBalanceIn] = useState(null);
   const [balanceOut, setBalanceOut] = useState(null);
 
@@ -220,28 +227,21 @@ export function SwapComponent({ provider, signer }) {
     }
   }, [swapValidation, tokenInHook.isValid, tokenOutHook.isValid]);
 
-  // Get user address
+  // Log wallet connection
   useEffect(() => {
-    if (signer) {
-      signer.getAddress()
-        .then(address => {
-          setUserAddress(address);
-          console.log('✅ Wallet connected:', address);
-        })
-        .catch(err => {
-          console.error('Failed to get wallet address:', err);
-          setUserAddress('');
-        });
-    } else {
-      setUserAddress('');
+    if (userAddress) {
+      console.log('✅ Wallet connected:', userAddress);
     }
-  }, [signer]);
+  }, [userAddress]);
 
-  // Debug: Log configuration on mount
+  // Debug: Log configuration
   useEffect(() => {
     console.log('🔧 SwapComponent Configuration:', {
       hasProvider: !!provider,
       hasSigner: !!signer,
+      active,
+      userAddress,
+      chainId,
       routerAddress: CONTRACT_ADDRESSES?.ROUTER || 'NOT SET',
       defaultSlippage: DEFAULT_SLIPPAGE,
     });
@@ -250,7 +250,7 @@ export function SwapComponent({ provider, signer }) {
       console.error('⚠️ WARNING: Router address is not configured!');
       console.error('Check CONTRACT_ADDRESSES in config/contracts.js');
     }
-  }, []);
+  }, [provider, signer, active, userAddress, chainId]);
 
   // Fetch balances
   useEffect(() => {

@@ -6,23 +6,21 @@
 
 import { getTokenList, getTokenAddressMap } from '../constants/tokens';
 
-// Uniswap V3 Arbitrum Subgraph Endpoints
-// 
-// IMPORTANT: The public hosted service is being deprecated by The Graph
-// For production, you MUST get a free API key from: https://thegraph.com/studio/
+// SushiSwap V2 Arbitrum Subgraph Endpoints
+// Using SushiSwap since it's V2-compatible and has liquidity on Arbitrum
 // 
 // Option 1: Decentralized Network (Recommended for Production)
 const SUBGRAPH_URL_GATEWAY = import.meta.env.VITE_GRAPH_API_KEY
-  ? `https://gateway.thegraph.com/api/${import.meta.env.VITE_GRAPH_API_KEY}/subgraphs/id/5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV`
+  ? `https://gateway.thegraph.com/api/${import.meta.env.VITE_GRAPH_API_KEY}/subgraphs/id/8nFDCAztWfyKxwerneLpBW2NhEEDRLMqeP53w4GCn8bz`
   : null;
 
 // Option 2: Direct Studio API (if you deployed your own)
 const SUBGRAPH_URL_STUDIO = import.meta.env.VITE_SUBGRAPH_STUDIO_URL || null;
 
-// Option 3: Alternative public endpoints (may have CORS issues)
+// Option 3: SushiSwap public endpoints for Arbitrum V2
 const FALLBACK_ENDPOINTS = [
-  'https://api.studio.thegraph.com/query/24660/uniswap-v3-arbitrum/version/latest',
-  'https://api.thegraph.com/subgraphs/id/QmZeCuoZeadgHkGwLwMeguyqUKz1WPWQYKcKyMCeQqGhsF',
+  'https://api.studio.thegraph.com/query/32073/sushiswap-arbitrum/v0.0.1',
+  'https://api.thegraph.com/subgraphs/name/sushi-v2/sushiswap-arbitrum',
 ];
 
 // Minimum liquidity threshold (in USD) to consider a pool as active
@@ -78,10 +76,10 @@ function getMockPools() {
 }
 
 /**
- * Fetch pools from Uniswap V3 subgraph
+ * Fetch pairs from SushiSwap V2 subgraph on Arbitrum
  * Tries multiple endpoints to avoid CORS issues
- * @param {number} first - Number of pools to fetch
- * @returns {Promise<Array>} Array of pool objects
+ * @param {number} first - Number of pairs to fetch
+ * @returns {Promise<Array>} Array of pair objects
  */
 export async function fetchPools(first = 1000) {
   // Use mock data for development if enabled
@@ -91,14 +89,15 @@ export async function fetchPools(first = 1000) {
     return getMockPools();
   }
 
+  // SushiSwap V2 uses "pairs" instead of "pools" and has different schema
   const query = `
-    query GetPools($first: Int!) {
-      pools(
+    query GetPairs($first: Int!) {
+      pairs(
         first: $first
-        orderBy: totalValueLockedUSD
+        orderBy: reserveUSD
         orderDirection: desc
         where: { 
-          totalValueLockedUSD_gt: "${MIN_LIQUIDITY_USD}"
+          reserveUSD_gt: "${MIN_LIQUIDITY_USD}"
         }
       ) {
         id
@@ -114,9 +113,8 @@ export async function fetchPools(first = 1000) {
           name
           decimals
         }
-        totalValueLockedUSD
+        reserveUSD
         volumeUSD
-        feeTier
       }
     }
   `;
@@ -176,9 +174,17 @@ export async function fetchPools(first = 1000) {
         throw new Error(`GraphQL errors: ${result.errors.map(e => e.message).join(', ')}`);
       }
 
-      const pools = result.data?.pools || [];
-      console.log(`✅ Successfully fetched ${pools.length} pools from ${endpoint.name}`);
-      return pools;
+      // SushiSwap V2 uses "pairs" instead of "pools"
+      const pools = result.data?.pairs || result.data?.pools || [];
+      console.log(`✅ Successfully fetched ${pools.length} pairs from ${endpoint.name}`);
+      
+      // Normalize the response - convert reserveUSD to totalValueLockedUSD for consistency
+      const normalizedPools = pools.map(pair => ({
+        ...pair,
+        totalValueLockedUSD: pair.reserveUSD || pair.totalValueLockedUSD || '0'
+      }));
+      
+      return normalizedPools;
       
     } catch (error) {
       console.warn(`❌ Failed to fetch from ${endpoint.name}:`, error.message);

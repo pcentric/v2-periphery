@@ -3,7 +3,7 @@
   "version": "1.1.0-beta.0",
   "description": "🎚 Peripheral smart contracts for interacting with Uniswap V2",
   "engines": {
-    "node": ">=10"
+      "node": ">=18.0.0"                                                                          
   },
   "homepage": "https://uniswap.org",
   "repository": {
@@ -36,6 +36,10 @@
     "ts-node": "^8.5.4",
     "typescript": "^3.7.3"
   },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "lint": "yarn prettier ./test/*.ts --check",
     "lint:fix": "yarn prettier ./test/*.ts --write",
@@ -46,7 +50,9 @@
     "postcompile": "yarn copy-v1-artifacts",
     "pretest": "yarn compile",
     "test": "mocha",
-    "prepublishOnly": "yarn test"
+    "prepublishOnly": "yarn test",
+    "dev:web": "npm run dev --workspace=@uniswap/v2-web",
+    "build:web": "npm run build --workspace=@uniswap/v2-web"
   },
   "license": "GPL-3.0-or-later"
 }
