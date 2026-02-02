@@ -1,11 +1,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { ethers } from 'ethers';
+import * as ethers from 'ethers';
 import {
   useAccount,
   useConnect,
   useDisconnect,
-  useWalletClient,
-  usePublicClient,
   WagmiProvider,
 } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -158,6 +156,11 @@ export const Web3ReactContextWrapper: React.FC<{ children: React.ReactNode }> = 
           const _account = address;
           const _provider = await activeConnector.getProvider();
 
+          // Defensive check for ethers.providers
+          if (!ethers.providers) {
+            throw new Error('ethers.providers is not available. Check ethers installation.');
+          }
+
           // Create ethers provider from wagmi provider (ethers v5)
           let ethersProvider: ethers.providers.Web3Provider | ethers.providers.JsonRpcProvider;
 
@@ -184,6 +187,8 @@ export const Web3ReactContextWrapper: React.FC<{ children: React.ReactNode }> = 
           setConnectError(null);
         } catch (error) {
           console.error('Failed to load connector:', error);
+          console.error('ethers:', ethers);
+          console.error('ethers.providers:', ethers.providers);
           setConnectError(error);
         }
       } else {
