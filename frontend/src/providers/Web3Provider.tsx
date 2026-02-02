@@ -154,21 +154,40 @@ export const Web3ReactContextWrapper: React.FC<{ children: React.ReactNode }> = 
         try {
           const _chainId = await activeConnector.getChainId();
           const _account = address;
-          const _provider = await activeConnector.getProvider();
-
-          // Defensive check for ethers.providers
-          if (!ethers.providers) {
-            throw new Error('ethers.providers is not available. Check ethers installation.');
+          
+          // Defensive check for ethers.providers (critical for production)
+          if (!ethers || !ethers.providers) {
+            console.error('❌ ethers.providers is not available!');
+            console.error('Installed ethers:', ethers);
+            throw new Error(
+              'ethers v5 is required but not properly loaded. ' +
+              'Run: npm install ethers@5.7.2'
+            );
           }
+
+          const _provider = await activeConnector.getProvider();
 
           // Create ethers provider from wagmi provider (ethers v5)
           let ethersProvider: ethers.providers.Web3Provider | ethers.providers.JsonRpcProvider;
 
-          if (_provider && window.ethereum) {
-            // Use Web3Provider for wallet connections (ethers v5)
-            ethersProvider = new ethers.providers.Web3Provider(_provider as any);
+          if (_provider) {
+            try {
+              // Use Web3Provider for wallet connections (ethers v5)
+              ethersProvider = new ethers.providers.Web3Provider(_provider as any);
+              console.log('✅ Created Web3Provider for wallet connection');
+            } catch (web3Error) {
+              console.warn('Failed to create Web3Provider, using JsonRpcProvider fallback');
+              // Fallback to JsonRpcProvider
+              const rpcUrl = chain.id === arbitrum.id 
+                ? 'https://arb1.arbitrum.io/rpc'
+                : 'https://sepolia-rollup.arbitrum.io/rpc';
+              ethersProvider = new ethers.providers.JsonRpcProvider(rpcUrl, {
+                chainId: chain.id,
+                name: chain.name,
+              });
+            }
           } else {
-            // Fallback to JsonRpcProvider (ethers v5)
+            // No provider from connector, use JsonRpcProvider
             const rpcUrl = chain.id === arbitrum.id 
               ? 'https://arb1.arbitrum.io/rpc'
               : 'https://sepolia-rollup.arbitrum.io/rpc';
@@ -185,10 +204,14 @@ export const Web3ReactContextWrapper: React.FC<{ children: React.ReactNode }> = 
           });
 
           setConnectError(null);
-        } catch (error) {
-          console.error('Failed to load connector:', error);
-          console.error('ethers:', ethers);
-          console.error('ethers.providers:', ethers.providers);
+        } catch (error: any) {
+          console.error('❌ Failed to load connector:', error);
+          console.error('Error details:', {
+            message: error.message,
+            stack: error.stack,
+            ethersAvailable: !!ethers,
+            providersAvailable: !!(ethers && ethers.providers),
+          });
           setConnectError(error);
         }
       } else {

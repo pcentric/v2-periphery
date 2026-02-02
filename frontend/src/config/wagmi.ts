@@ -2,12 +2,12 @@ import { connectorsForWallets } from '@rainbow-me/rainbowkit';
 import { injectedWallet, metaMaskWallet, coinbaseWallet } from '@rainbow-me/rainbowkit/wallets';
 import { createConfig, http } from 'wagmi';
 import { arbitrum, arbitrumSepolia } from 'wagmi/chains';
-import { impersonator, getCustomArbitrumRpc } from '../connectors/impersonator';
+// import { impersonator, getCustomArbitrumRpc } from '../connectors/impersonator';
 
 // Define chains - Arbitrum only (Mainnet and Sepolia)
 export const chains = [arbitrum, arbitrumSepolia] as const;
 
-// Configure wallets with injected wallets + impersonator
+// Configure wallets with injected wallets
 const connectors = connectorsForWallets(
   [
     {
@@ -21,17 +21,16 @@ const connectors = connectorsForWallets(
   }
 );
 
-// Add impersonator connector to the list
-const allConnectors = [...connectors, impersonator()];
+// Use connectors directly (impersonator temporarily disabled to avoid conflicts)
+const allConnectors = [...connectors];
 
 // Function to get transport for a chain (with custom RPC support for Arbitrum)
 export const getTransport = (chainId: number) => {
-  const customRpc = getCustomArbitrumRpc();
-  
-  // Use custom RPC only for Arbitrum chains (mainnet and sepolia)
-  if (customRpc && (chainId === arbitrum.id || chainId === arbitrumSepolia.id)) {
-    return http(customRpc);
-  }
+  // Temporarily disabled custom RPC to avoid conflicts
+  // const customRpc = getCustomArbitrumRpc();
+  // if (customRpc && (chainId === arbitrum.id || chainId === arbitrumSepolia.id)) {
+  //   return http(customRpc);
+  // }
   
   return http();
 };
