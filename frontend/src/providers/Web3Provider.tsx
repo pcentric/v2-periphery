@@ -241,12 +241,8 @@ export const Web3ReactContextWrapper: React.FC<{ children: React.ReactNode }> = 
     
     if (customRpc && connectInfo.provider) {
       console.log('Using custom Arbitrum RPC:', customRpc);
-      
       // ethers v5 API
-      const customProvider = new ethers.providers.JsonRpcProvider(customRpc, {
-        chainId: arbitrum.id,
-        name: 'arbitrum',
-      });
+      const customProvider = new (window as any).ethers.JsonRpcProvider(customRpc, arbitrum.id);
 
       setConnectInfo(prev => ({
         ...prev,
