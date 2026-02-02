@@ -126,8 +126,6 @@ export const Web3ReactContextWrapper: React.FC<{ children: React.ReactNode }> = 
   const { connect } = useConnect();
   const { disconnectAsync } = useDisconnect();
   const { connector: activeConnector, status, address, chain } = useAccount();
-  const publicClient = usePublicClient();
-  const { data: walletClient } = useWalletClient();
 
   const [connectInfo, setConnectInfo] = useState<{
     chainId: number | undefined;
@@ -160,14 +158,14 @@ export const Web3ReactContextWrapper: React.FC<{ children: React.ReactNode }> = 
           const _account = address;
           const _provider = await activeConnector.getProvider();
 
-          // Create ethers provider from wagmi provider
+          // Create ethers provider from wagmi provider (ethers v5)
           let ethersProvider: ethers.providers.Web3Provider | ethers.providers.JsonRpcProvider;
 
           if (_provider && window.ethereum) {
-            // Use Web3Provider for wallet connections
+            // Use Web3Provider for wallet connections (ethers v5)
             ethersProvider = new ethers.providers.Web3Provider(_provider as any);
           } else {
-            // Fallback to JsonRpcProvider
+            // Fallback to JsonRpcProvider (ethers v5)
             const rpcUrl = chain.id === arbitrum.id 
               ? 'https://arb1.arbitrum.io/rpc'
               : 'https://sepolia-rollup.arbitrum.io/rpc';
@@ -216,6 +214,7 @@ export const Web3ReactContextWrapper: React.FC<{ children: React.ReactNode }> = 
     if (customRpc && connectInfo.provider) {
       console.log('Using custom Arbitrum RPC:', customRpc);
       
+      // ethers v5 API
       const customProvider = new ethers.providers.JsonRpcProvider(customRpc, {
         chainId: arbitrum.id,
         name: 'arbitrum',
@@ -292,15 +291,22 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
  */
 export const useProviderAndSigner = () => {
   const { library, account } = useWeb3React();
-  const [provider, setProvider] = useState<ethers.providers.JsonRpcProvider | null>(null);
+  const [provider, setProvider] = useState<ethers.providers.JsonRpcProvider | ethers.providers.Web3Provider | null>(null);
   const [signer, setSigner] = useState<ethers.providers.JsonRpcSigner | null>(null);
 
   useEffect(() => {
     if (library) {
       setProvider(library as any);
       
+      // ethers v5: getSigner() is synchronous
       if (account && library instanceof ethers.providers.Web3Provider) {
-        setSigner(library.getSigner());
+        try {
+          const ethersSigner = library.getSigner();
+          setSigner(ethersSigner);
+        } catch (error) {
+          console.error('Failed to get signer:', error);
+          setSigner(null);
+        }
       } else {
         setSigner(null);
       }
