@@ -4,6 +4,9 @@
   "description": "Uniswap V2 Frontend with RainbowKit and wagmi",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": "18.x"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
