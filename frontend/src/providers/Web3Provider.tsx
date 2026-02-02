@@ -17,7 +17,7 @@ import {
   trustWallet,
 } from '@rainbow-me/rainbowkit/wallets';
 import { createConfig, http } from 'wagmi';
-import { arbitrum, arbitrumSepolia } from 'wagmi/chains';
+import { mainnet, arbitrum, arbitrumSepolia } from 'wagmi/chains';
 
 import '@rainbow-me/rainbowkit/styles.css';
 
@@ -39,8 +39,8 @@ const Web3ReactContext = createContext<Web3ReactContextValue | null>(null);
 // WalletConnect Project ID
 const projectId = '2cc94868db6b1ebd44d24dcea9ed7600';
 
-// Supported chains (Arbitrum only)
-const chains = [arbitrum, arbitrumSepolia] as const;
+// Supported chains - Arbitrum and Ethereum
+const chains = [arbitrum, mainnet, arbitrumSepolia] as const;
 
 // Configure wallet connectors
 const connectors = connectorsForWallets(
@@ -68,6 +68,7 @@ export const wagmiConfig = createConfig({
   chains,
   connectors,
   transports: {
+    [mainnet.id]: http('https://eth.llamarpc.com'),
     [arbitrum.id]: http('https://arb1.arbitrum.io/rpc'),
     [arbitrumSepolia.id]: http('https://sepolia-rollup.arbitrum.io/rpc'),
   },
@@ -152,20 +153,25 @@ export const Web3ReactContextWrapper: React.FC<{ children: React.ReactNode }> = 
           return;
         }
         
-        const _chainId = await activeConnector?.getChainId();
-        const _account = address;
-        const _provider = await activeConnector.getProvider();
-        
-        setConnectInfo((info) => {
-          const newInfo = { ...info };
-          newInfo.account = _account;
-          newInfo.chainId = _chainId;
+        try {
+          const _chainId = await activeConnector?.getChainId();
+          const _account = address;
+          const _provider = await activeConnector.getProvider();
           
-          // Create ethers provider (ethers v5)
-          newInfo.provider = new ethers.providers.Web3Provider(_provider as any);
-          
-          return newInfo;
-        });
+          setConnectInfo((info) => {
+            const newInfo = { ...info };
+            newInfo.account = _account;
+            newInfo.chainId = _chainId;
+            
+            // Create ethers provider (ethers v5)
+            newInfo.provider = new ethers.providers.Web3Provider(_provider as any);
+            
+            return newInfo;
+          });
+        } catch (error) {
+          console.error('Error loading connector:', error);
+          setConnectError(error);
+        }
       } else {
         setConnectInfo((info) => {
           const newInfo = { ...info };

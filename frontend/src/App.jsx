@@ -4,9 +4,6 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { SwapComponent } from './components/SwapComponent';
 import { LiquidityComponent } from './components/LiquidityComponent';
 import { PoolDiagnostic } from './components/PoolDiagnostic';
-import { ImpersonatorModal } from './components/ImpersonatorModal';
-import { getNetworkByChainId } from './config/contracts';
-import { chains } from './config/wagmi';
 import './assets/styles.css';
 
 // Uniswap Logo SVG
@@ -20,7 +17,7 @@ const UniswapLogo = () => (
 
 function App() {
   const [activeTab, setActiveTab] = useState('swap');
-  const [showImpersonator, setShowImpersonator] = useState(false);
+  // const [showImpersonator, setShowImpersonator] = useState(false);
   const { isConnected } = useAccount();
 
   return (
@@ -57,15 +54,6 @@ function App() {
 
         {/* Wallet Section */}
         <div className="wallet-section">
-          {/* Impersonator Button */}
-          <button
-            onClick={() => setShowImpersonator(true)}
-            className="impersonator-button"
-            title="Impersonate any account for testing"
-          >
-            🎭
-          </button>
-          
           {/* RainbowKit Connect Button */}
           <ConnectButton />
         </div>
@@ -100,12 +88,6 @@ function App() {
       <footer className="app-footer">
         <p>Uniswap V2 · Built on Ethereum</p>
       </footer>
-
-      {/* Impersonator Modal */}
-      <ImpersonatorModal 
-        isOpen={showImpersonator} 
-        onClose={() => setShowImpersonator(false)} 
-      />
     </div>
   );
 }
