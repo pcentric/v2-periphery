@@ -139,87 +139,40 @@ export const Web3ReactContextWrapper: React.FC<{ children: React.ReactNode }> = 
   useEffect(() => {
     async function loadConnector() {
       if (activeConnector) {
-        // Check if chain is supported
         if (!chain) {
           console.warn('Unsupported chain');
           setConnectError('unsupported');
-          setConnectInfo({
-            account: undefined,
-            chainId: undefined,
-            provider: undefined,
+          setConnectInfo((info) => {
+            const newInfo = { ...info };
+            newInfo.account = undefined;
+            newInfo.chainId = undefined;
+            newInfo.provider = undefined;
+            return newInfo;
           });
           return;
         }
-
-        try {
-          const _chainId = await activeConnector.getChainId();
-          const _account = address;
+        
+        const _chainId = await activeConnector?.getChainId();
+        const _account = address;
+        const _provider = await activeConnector.getProvider();
+        
+        setConnectInfo((info) => {
+          const newInfo = { ...info };
+          newInfo.account = _account;
+          newInfo.chainId = _chainId;
           
-          // Defensive check for ethers.providers (critical for production)
-          if (!ethers || !ethers.providers) {
-            console.error('❌ ethers.providers is not available!');
-            console.error('Installed ethers:', ethers);
-            throw new Error(
-              'ethers v5 is required but not properly loaded. ' +
-              'Run: npm install ethers@5.7.2'
-            );
-          }
-
-          const _provider = await activeConnector.getProvider();
-
-          // Create ethers provider from wagmi provider (ethers v5)
-          let ethersProvider: ethers.providers.Web3Provider | ethers.providers.JsonRpcProvider;
-
-          if (_provider) {
-            try {
-              // Use Web3Provider for wallet connections (ethers v5)
-              ethersProvider = new ethers.providers.Web3Provider(_provider as any);
-              console.log('✅ Created Web3Provider for wallet connection');
-            } catch (web3Error) {
-              console.warn('Failed to create Web3Provider, using JsonRpcProvider fallback');
-              // Fallback to JsonRpcProvider
-              const rpcUrl = chain.id === arbitrum.id 
-                ? 'https://arb1.arbitrum.io/rpc'
-                : 'https://sepolia-rollup.arbitrum.io/rpc';
-              ethersProvider = new ethers.providers.JsonRpcProvider(rpcUrl, {
-                chainId: chain.id,
-                name: chain.name,
-              });
-            }
-          } else {
-            // No provider from connector, use JsonRpcProvider
-            const rpcUrl = chain.id === arbitrum.id 
-              ? 'https://arb1.arbitrum.io/rpc'
-              : 'https://sepolia-rollup.arbitrum.io/rpc';
-            ethersProvider = new ethers.providers.JsonRpcProvider(rpcUrl, {
-              chainId: chain.id,
-              name: chain.name,
-            });
-          }
-
-          setConnectInfo({
-            account: _account,
-            chainId: _chainId,
-            provider: ethersProvider,
-          });
-
-          setConnectError(null);
-        } catch (error: any) {
-          console.error('❌ Failed to load connector:', error);
-          console.error('Error details:', {
-            message: error.message,
-            stack: error.stack,
-            ethersAvailable: !!ethers,
-            providersAvailable: !!(ethers && ethers.providers),
-          });
-          setConnectError(error);
-        }
+          // Create ethers provider (ethers v5)
+          newInfo.provider = new ethers.providers.Web3Provider(_provider as any);
+          
+          return newInfo;
+        });
       } else {
-        // Not connected
-        setConnectInfo({
-          account: undefined,
-          chainId: undefined,
-          provider: undefined,
+        setConnectInfo((info) => {
+          const newInfo = { ...info };
+          newInfo.account = undefined;
+          newInfo.chainId = undefined;
+          newInfo.provider = undefined;
+          return newInfo;
         });
       }
     }
@@ -231,25 +184,36 @@ export const Web3ReactContextWrapper: React.FC<{ children: React.ReactNode }> = 
       }
     }
 
-    checkStatus();
+    async function setTestTenderlyProvider(tenderlyRpc: string) {
+      const provider = new ethers.providers.JsonRpcProvider(tenderlyRpc);
+
+      const account = await (await provider.getSigner()).getAddress();
+      const chainId = (await provider.getNetwork()).chainId;
+      
+      setConnectInfo((info) => {
+        const newInfo = { ...info };
+        newInfo.account = account;
+        newInfo.chainId = chainId;
+        newInfo.provider = provider;
+        return newInfo;
+      });
+      
+      setTimeout(() => {
+        setIsCheckedWallet(true);
+      }, 0);
+    }
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const tenderly = urlParams.get('tenderly');
+    if (tenderly && tenderly.startsWith('https://')) {
+      setTestTenderlyProvider(tenderly);
+    } else {
+      checkStatus();
+    }
   }, [status, chain, activeConnector, address]);
 
-  // Handle custom RPC from impersonator or URL params
-  useEffect(() => {
-    // Check for custom RPC in localStorage (from impersonator)
-    const customRpc = localStorage.getItem('customArbitrumRpc');
-    
-    if (customRpc && connectInfo.provider) {
-      console.log('Using custom Arbitrum RPC:', customRpc);
-      // ethers v5 API
-      const customProvider = new (window as any).ethers.JsonRpcProvider(customRpc, arbitrum.id);
-
-      setConnectInfo(prev => ({
-        ...prev,
-        provider: customProvider,
-      }));
-    }
-  }, [connectInfo.provider, connectInfo.chainId]);
+  // Note: Custom RPC support temporarily disabled
+  // Re-enable after ethers v5 is properly installed
 
   const contextValue: Web3ReactContextValue = {
     chainId: connectInfo.chainId,
