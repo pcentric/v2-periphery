@@ -1074,8 +1074,12 @@ body {
    PLACEHOLDER / CONNECT PROMPT
    ═══════════════════════════════════════════════════════════════ */
 .connect-prompt {
-  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   padding: 3rem 2rem;
+  height: 100%;
 }
 
 .connect-prompt p {
