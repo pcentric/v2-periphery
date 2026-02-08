@@ -13,7 +13,7 @@ import {
   getDeadline
 } from '../utils/calculations';
 import { useSafeSwap, useSwapValidation, useFilteredOutputTokens } from '../hooks/useSafeSwap';
-import { VERIFIED_TOKENS } from '../constants/tokens';                                                                                               
+import { VERIFIED_TOKENS, getAddressForRouting, isNativeToken } from '../constants/tokens';                                                                                               
                                           
 // Icons
 const SettingsIcon = () => (
@@ -208,17 +208,22 @@ export function SwapComponent() {
   // Safe swap hook - provides verified tokens and pair mapping
   const { tokens, pairMapping, loading: pairMappingLoading, error: pairMappingError, canSwap } = useSafeSwap();
   
-  // Get filtered output tokens based on selected input token
-  const filteredOutputTokens = useFilteredOutputTokens(tokenIn, pairMapping);
+  // Get filtered output tokens based on selected input token - use WETH address for native ETH
+  const filteredOutputTokens = useFilteredOutputTokens(getAddressForRouting(tokenIn), pairMapping);
   
-  // Validate swap pair
-  const swapValidation = useSwapValidation(tokenIn, tokenOut, pairMapping);
+  // Validate swap pair - use WETH address for native ETH
+  const swapValidation = useSwapValidation(
+    getAddressForRouting(tokenIn), 
+    getAddressForRouting(tokenOut), 
+    pairMapping
+  );
 
   // Hooks
   const router = useRouter(provider, signer);
   const tokenInHook = useToken(tokenIn, provider, signer);
   const tokenOutHook = useToken(tokenOut, provider);
-  const pair = usePair(tokenIn, tokenOut, provider);
+  // ✅ Use getAddressForRouting for pair lookups (native ETH -> WETH)
+  const pair = usePair(getAddressForRouting(tokenIn), getAddressForRouting(tokenOut), provider);
 
   // Log swap validation status
   useEffect(() => {
@@ -308,6 +313,13 @@ export function SwapComponent() {
 
   // Check approval status
   useEffect(() => {
+    // ✅ Native ETH doesn't need approval
+    if (isNativeToken(tokenIn)) {
+      setIsApproved(true);
+      console.log('Approval status: ✅ Native ETH (no approval needed)');
+      return;
+    }
+
     if (!tokenIn || !userAddress || !amountIn || !tokenInHook.isValid || !CONTRACT_ADDRESSES?.ROUTER) {
       setIsApproved(false);
       return;
@@ -371,7 +383,8 @@ export function SwapComponent() {
     const calculateOutput = async () => {
       try {
         const amountInParsed = parseTokenAmount(amountIn, tokenInHook.decimals);
-        const path = [tokenIn, tokenOut];
+        // ✅ Use getAddressForRouting to handle native ETH -> WETH conversion for routing
+        const path = [getAddressForRouting(tokenIn), getAddressForRouting(tokenOut)];
         
         console.log('🔄 Calculating output for:', {
           amountIn,
@@ -561,10 +574,31 @@ export function SwapComponent() {
       const amountInParsed = parseTokenAmount(amountIn, tokenInHook.decimals);
       const amountOutParsed = parseTokenAmount(amountOut, tokenOutHook.decimals);
       const amountOutMin = applySlippage(amountOutParsed, slippage, true);
-      const path = [tokenIn, tokenOut];
+      // ✅ Use getAddressForRouting to handle native ETH -> WETH conversion for routing
+      const path = [getAddressForRouting(tokenIn), getAddressForRouting(tokenOut)];
       const deadline = getDeadline();
 
-      await router.swapExactTokensForTokens(amountInParsed, amountOutMin, path, deadline);
+      // ✅ Use appropriate swap method based on token types
+      const isInputNative = isNativeToken(tokenIn);
+      const isOutputNative = isNativeToken(tokenOut);
+
+      if (isInputNative && !isOutputNative) {
+        // ETH → Token: Use swapExactETHForTokens with msg.value
+        console.log('💎 Executing ETH → Token swap');
+        // swapExactETHForTokens(amountOutMin, path, value, deadline)
+        await router.swapExactETHForTokens(amountOutMin, path, amountInParsed, deadline);
+      } else if (!isInputNative && isOutputNative) {
+        // Token → ETH: Use swapExactTokensForETH
+        console.log('🪙 Executing Token → ETH swap');
+        // swapExactTokensForETH(amountIn, amountOutMin, path, deadline)
+        await router.swapExactTokensForETH(amountInParsed, amountOutMin, path, deadline);
+      } else if (!isInputNative && !isOutputNative) {
+        // Token → Token: Use swapExactTokensForTokens
+        console.log('🔄 Executing Token → Token swap');
+        await router.swapExactTokensForTokens(amountInParsed, amountOutMin, path, deadline);
+      } else {
+        throw new Error('Cannot swap ETH for ETH');
+      }
 
       console.log('✅ Swap successful');
 
@@ -837,13 +871,37 @@ export function SwapComponent() {
 
       {/* Loading/Error Messages */}
       {pairMappingLoading && (
-        <div className="swap-body">
-          <div className="info-message">Loading liquidity pools...</div>
+        <div className="swap-body" style={{ animation: 'fadeInUp 0.3s ease-out' }}>
+          <div style={{ 
+            padding: '1rem', 
+            textAlign: 'center',
+            color: 'var(--text-secondary)',
+            background: 'var(--bg-module)',
+            borderRadius: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.75rem'
+          }}>
+            <div className="spinner" style={{ width: '20px', height: '20px' }}>
+              <svg viewBox="0 0 50 50" style={{ animation: 'rotate 2s linear infinite' }}>
+                <circle
+                  className="spinner-path"
+                  cx="25"
+                  cy="25"
+                  r="20"
+                  fill="none"
+                  strokeWidth="4"
+                />
+              </svg>
+            </div>
+            Loading liquidity pools...
+          </div>
         </div>
       )}
       
       {pairMappingError && (
-        <div className="swap-body">
+        <div className="swap-body" style={{ animation: 'fadeInUp 0.3s ease-out' }}>
           <div className="error-message">
             Failed to load liquidity data: {pairMappingError}
           </div>

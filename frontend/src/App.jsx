@@ -46,9 +46,24 @@ function App() {
           <button
             className={activeTab === 'diagnostic' ? 'active' : ''}
             onClick={() => setActiveTab('diagnostic')}
-            style={{ fontSize: '13px' }}
+            style={{ 
+              fontSize: '13px',
+              position: 'relative'
+            }}
+            title="Pool Diagnostic Tool - Verify DEX liquidity, check reserves, and debug swap calculations"
           >
             🔍 Debug
+            <span style={{
+              position: 'absolute',
+              top: '-4px',
+              right: '-4px',
+              width: '8px',
+              height: '8px',
+              background: 'var(--blue-primary)',
+              borderRadius: '50%',
+              border: '2px solid var(--bg-secondary)',
+              display: activeTab === 'diagnostic' ? 'none' : 'block'
+            }} />
           </button>
         </nav>
 

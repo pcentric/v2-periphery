@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { CONTRACT_ABIS, CONTRACT_ADDRESSES, GAS_LIMITS } from '../config/contracts';
 import { isValidAddress, getErrorMessage } from '../utils/validation';
+import { NATIVE_ETH_ADDRESS, VERIFIED_TOKENS, isNativeToken } from '../constants/tokens';
 
 /**
  * Hook for interacting with ERC20 tokens
@@ -49,6 +50,18 @@ export function useToken(tokenAddress, provider, signer = null) {
     setError(null);
 
     try {
+      // ✅ Handle Native ETH - no contract calls needed
+      if (isNativeToken(tokenAddress)) {
+        const ethToken = VERIFIED_TOKENS.ETH;
+        setMetadata({
+          name: ethToken.name,
+          symbol: ethToken.symbol,
+          decimals: ethToken.decimals
+        });
+        setIsValid(true);
+        setLoading(false);
+        return;
+      }
       // First check if there's contract code at the address
       // const code = await provider.getCode(tokenAddress);
       // if (code === '0x' || code === '0x0') {
@@ -155,13 +168,19 @@ export function useToken(tokenAddress, provider, signer = null) {
   }, [tokenAddress, provider]);
 
   /**
-   * Get token balance for an address
+   * Get token balance for an addresss
    */
   const getBalance = useCallback(
     async (address) => {
       if (!tokenAddress || !provider) return ethers.BigNumber.from(0);
 
       try {
+        // ✅ For Native ETH, use provider.getBalance
+        if (isNativeToken(tokenAddress)) {
+          return await provider.getBalance(address);
+        }
+
+        // For ERC20 tokens, use contract balanceOf
         const tokenContract = getTokenContract();
         return await tokenContract.balanceOf(address);
       } catch (err) {
@@ -177,6 +196,11 @@ export function useToken(tokenAddress, provider, signer = null) {
   const getAllowance = useCallback(
     async (owner, spender) => {
       if (!tokenAddress || !provider) return ethers.BigNumber.from(0);
+
+      // ✅ Native ETH doesn't need allowance - treat as max approved
+      if (isNativeToken(tokenAddress)) {
+        return ethers.constants.MaxUint256;
+      }
 
       // Don't try to check allowance if token is invalid
       if (!isValidAddress(tokenAddress)) {
@@ -199,6 +223,11 @@ export function useToken(tokenAddress, provider, signer = null) {
    */
   const approve = useCallback(
     async (spender, amount) => {
+      // ✅ Native ETH doesn't need approval - return success immediately
+      if (isNativeToken(tokenAddress)) {
+        return { transactionHash: 'native-eth-no-approval-needed' };
+      }
+
       if (!signer) throw new Error('Signer required for approval');
 
       setLoading(true);
@@ -220,7 +249,7 @@ export function useToken(tokenAddress, provider, signer = null) {
         throw err;
       }
     },
-    [signer, getTokenContract]
+    [tokenAddress, signer, getTokenContract]
   );
 
   /**

@@ -103,16 +103,30 @@ body {
   font-size: 1rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
 }
 
 .nav-links button:hover {
   color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .nav-links button.active {
   color: var(--text-primary);
   background: var(--bg-tertiary);
+}
+
+.nav-links button.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 2px;
+  background: var(--pink-primary);
+  border-radius: 2px 2px 0 0;
 }
 
 .wallet-section {
@@ -227,6 +241,12 @@ body {
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
+  animation: fadeInUp 0.4s ease-out;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.swap-card:hover {
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.7);
 }
 
 .swap-header {
@@ -276,7 +296,7 @@ body {
   border-radius: 16px;
   padding: 1rem;
   border: 1px solid transparent;
-  transition: border-color 0.2s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .token-input-box:hover {
@@ -284,7 +304,10 @@ body {
 }
 
 .token-input-box:focus-within {
-  border-color: var(--text-tertiary);
+  border-color: var(--pink-primary);
+  background: rgba(255, 0, 122, 0.05);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 0, 122, 0.1);
 }
 
 .token-input-box.has-error {
@@ -301,6 +324,7 @@ body {
 .token-input-label {
   font-size: 0.875rem;
   color: var(--text-secondary);
+  font-weight: 500;
 }
 
 .token-balance {
@@ -349,27 +373,41 @@ body {
   align-items: center;
   gap: 0.5rem;
   background: var(--bg-tertiary);
-  border: none;
+  border: 1px solid var(--border-color);
   padding: 0.5rem 0.75rem;
   border-radius: 16px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   min-width: fit-content;
 }
 
 .token-selector:hover {
-  background: var(--border-color);
+  background: var(--bg-module);
+  border-color: var(--pink-primary);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(255, 0, 122, 0.15);
+}
+
+.token-selector:active {
+  transform: translateY(0);
 }
 
 .token-selector.select-token {
   background: var(--pink-primary);
-  color: white;
+  color: white !important;
   font-weight: 600;
   padding: 0.625rem 1rem;
+  border-color: var(--pink-primary);
 }
 
 .token-selector.select-token:hover {
   background: var(--pink-secondary);
+  border-color: var(--pink-secondary);
+}
+
+/* Ensure chevron in select-token is white */
+.token-selector.select-token svg {
+  color: white !important;
 }
 
 .token-icon {
@@ -377,6 +415,7 @@ body {
   height: 24px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--pink-primary), var(--blue-primary));
+  flex-shrink: 0;
 }
 
 .token-symbol {
@@ -389,6 +428,11 @@ body {
   width: 12px;
   height: 12px;
   color: var(--text-secondary);
+  transition: transform 0.2s;
+}
+
+.token-selector:hover svg {
+  transform: translateY(2px);
 }
 
 /* Token Address Input */
@@ -434,6 +478,14 @@ body {
   color: var(--red);
 }
 
+.token-status.info {
+  color: var(--blue-primary);
+  background: rgba(33, 114, 229, 0.1);
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(33, 114, 229, 0.2);
+}
+
 /* Swap Direction Button */
 .swap-direction-wrapper {
   display: flex;
@@ -453,13 +505,14 @@ body {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   color: var(--text-secondary);
 }
 
 .swap-direction-button:hover {
   color: var(--text-primary);
   transform: rotate(180deg);
+  box-shadow: 0 4px 12px rgba(255, 0, 122, 0.2);
 }
 
 .swap-direction-button svg {
@@ -573,12 +626,18 @@ body {
   font-weight: 600;
   color: var(--pink-primary);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .swap-button:not(:disabled):hover {
   background: var(--pink-primary);
   color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 0, 122, 0.3);
+}
+
+.swap-button:not(:disabled):active {
+  transform: translateY(0);
 }
 
 .swap-button:disabled {
@@ -622,6 +681,12 @@ body {
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
+  animation: fadeInUp 0.4s ease-out;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.liquidity-card:hover {
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.7);
 }
 
 .liquidity-header {
@@ -1192,7 +1257,7 @@ body {
   border: 1px solid transparent;
   border-radius: 12px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   text-align: left;
   margin-bottom: 0.25rem;
 }
@@ -1200,11 +1265,16 @@ body {
 .token-list-item:hover {
   background: var(--bg-tertiary);
   border-color: var(--border-color);
+  transform: translateX(4px);
 }
 
 .token-list-item.selected {
   background: var(--pink-dim);
   border-color: var(--pink-primary);
+}
+
+.token-list-item:active {
+  transform: scale(0.98);
 }
 
 .token-list-item-logo {
@@ -1303,6 +1373,43 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-tertiary);
+}
+
+/* Loading skeleton animations */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.skeleton {
+  animation: shimmer 2s infinite linear;
+  background: linear-gradient(
+    to right,
+    var(--bg-module) 4%,
+    var(--bg-tertiary) 25%,
+    var(--bg-module) 36%
+  );
+  background-size: 1000px 100%;
+}
+
+/* Fade in animation for content */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeInUp 0.3s ease-out;
 }
 
 /* Mobile responsive */

@@ -46,6 +46,7 @@ export function usePair(tokenA, tokenB, provider) {
 
   /**
    * Fetch current reserves and token order
+   * Optimized with parallel requests and better error handling
    */
   const fetchReserves = useCallback(async () => {
     console.log('🔍 Fetching reserves for pair:', pairAddress);
@@ -55,24 +56,25 @@ export function usePair(tokenA, tokenB, provider) {
     setError(null);
 
     try {
-      // First check if pair exists
-      const code = await provider.getCode(pairAddress);
-      if (code === '0x') {
+      const pairContract = getPairContract();
+      
+      // Check pair existence and fetch data in parallel for better performance
+      const [code, reservesData, token0Address, token1Address, totalSupplyData] = await Promise.all([
+        provider.getCode(pairAddress),
+        pairContract.getReserves().catch(() => null),
+        pairContract.token0().catch(() => null),
+        pairContract.token1().catch(() => null),
+        pairContract.totalSupply().catch(() => null)
+      ]);
+
+      if (code === '0x' || !reservesData) {
         console.warn('⚠️ Pair does not exist on-chain:', pairAddress);
         setError('Pair does not exist');
         setLoading(false);
         return;
       }
       
-      console.log('✅ Pair exists on-chain, fetching data...');
-      const pairContract = getPairContract();
-
-      const [reservesData, token0Address, token1Address, totalSupplyData] = await Promise.all([
-        pairContract.getReserves(),
-        pairContract.token0(),
-        pairContract.token1(),
-        pairContract.totalSupply()
-      ]);
+      console.log('✅ Pair exists on-chain, data fetched');
       
       console.log('📊 Pair Reserves Fetched:', {
         pairAddress,

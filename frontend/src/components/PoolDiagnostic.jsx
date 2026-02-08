@@ -120,10 +120,11 @@ export function PoolDiagnostic() {
     return (
       <div style={{ 
         padding: '20px', 
-        backgroundColor: '#fff3cd', 
-        border: '1px solid #ffc107',
+        backgroundColor: 'rgba(255, 193, 7, 0.1)', 
+        border: '1px solid rgba(255, 193, 7, 0.3)',
         borderRadius: '8px',
-        margin: '20px'
+        margin: '20px',
+        color: 'var(--text-primary)'
       }}>
         ⚠️ Please connect wallet to run diagnostics
       </div>
@@ -133,26 +134,94 @@ export function PoolDiagnostic() {
   return (
     <div style={{
       padding: '20px',
-      backgroundColor: '#f8f9fa',
-      border: '1px solid #dee2e6',
-      borderRadius: '8px',
+      backgroundColor: 'var(--bg-module)',
+      border: '1px solid var(--border-color)',
+      borderRadius: '16px',
       margin: '20px',
       fontFamily: 'monospace',
       fontSize: '13px'
     }}>
-      <h3 style={{ marginTop: 0 }}>🔍 Pool Diagnostic Tool</h3>
+      <div style={{ marginBottom: '16px' }}>
+        <h3 style={{ 
+          marginTop: 0, 
+          marginBottom: '12px', 
+          color: 'var(--text-primary)',
+          fontSize: '20px',
+          fontWeight: '600',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          🔍 Pool Diagnostic Tool
+        </h3>
+        <div style={{
+          background: 'rgba(33, 114, 229, 0.1)',
+          border: '1px solid rgba(33, 114, 229, 0.3)',
+          borderRadius: '12px',
+          padding: '12px',
+          marginBottom: '16px'
+        }}>
+          <p style={{ 
+            margin: 0, 
+            fontSize: '14px', 
+            color: 'var(--text-primary)', 
+            fontFamily: 'Inter, sans-serif',
+            lineHeight: '1.6',
+            fontWeight: '500'
+          }}>
+            <strong>📋 What is this tool for?</strong>
+          </p>
+          <p style={{ 
+            margin: '8px 0 0 0', 
+            fontSize: '13px', 
+            color: 'var(--text-secondary)', 
+            fontFamily: 'Inter, sans-serif',
+            lineHeight: '1.5'
+          }}>
+            The Debug tab helps you verify liquidity pools, check real-time reserves, debug swap calculations, and validate DEX configuration. 
+            It's useful for:
+          </p>
+          <ul style={{
+            margin: '8px 0 0 0',
+            paddingLeft: '20px',
+            fontSize: '13px',
+            color: 'var(--text-secondary)',
+            lineHeight: '1.5'
+          }}>
+            <li>Verifying pool existence on SushiSwap (Arbitrum)</li>
+            <li>Checking real-time token reserves and ratios</li>
+            <li>Understanding price calculations</li>
+            <li>Troubleshooting swap or liquidity issues</li>
+          </ul>
+        </div>
+      </div>
       
       <button 
         onClick={checkPools}
         disabled={loading}
         style={{
-          padding: '10px 20px',
-          backgroundColor: '#007bff',
+          padding: '12px 24px',
+          backgroundColor: 'var(--pink-primary)',
           color: 'white',
           border: 'none',
-          borderRadius: '6px',
+          borderRadius: '12px',
           cursor: loading ? 'not-allowed' : 'pointer',
-          marginBottom: '15px'
+          marginBottom: '15px',
+          fontWeight: '600',
+          fontSize: '14px',
+          fontFamily: 'Inter, sans-serif',
+          transition: 'all 0.2s',
+          opacity: loading ? 0.7 : 1
+        }}
+        onMouseEnter={(e) => {
+          if (!loading) {
+            e.target.style.backgroundColor = 'var(--pink-secondary)';
+            e.target.style.transform = 'translateY(-2px)';
+          }
+        }}
+        onMouseLeave={(e) => {
+          e.target.style.backgroundColor = 'var(--pink-primary)';
+          e.target.style.transform = 'translateY(0)';
         }}
       >
         {loading ? '⏳ Checking...' : '🔄 Check WETH/USDC Pool'}
@@ -161,8 +230,9 @@ export function PoolDiagnostic() {
       {error && (
         <div style={{ 
           padding: '15px', 
-          backgroundColor: '#f8d7da', 
-          color: '#721c24',
+          backgroundColor: 'rgba(220, 53, 69, 0.1)', 
+          color: '#dc3545',
+          border: '1px solid rgba(220, 53, 69, 0.3)',
           borderRadius: '6px',
           marginBottom: '15px'
         }}>
@@ -173,47 +243,48 @@ export function PoolDiagnostic() {
       {results && (
         <div style={{ 
           padding: '15px', 
-          backgroundColor: results.exists ? '#d4edda' : '#fff3cd',
+          backgroundColor: results.exists ? 'rgba(40, 167, 69, 0.1)' : 'rgba(255, 193, 7, 0.1)',
+          border: results.exists ? '1px solid rgba(40, 167, 69, 0.3)' : '1px solid rgba(255, 193, 7, 0.3)',
           borderRadius: '6px'
         }}>
           {results.exists ? (
             <>
               <div style={{ marginBottom: '15px' }}>
-                <strong style={{ fontSize: '16px', color: '#155724' }}>
+                <strong style={{ fontSize: '16px', color: '#28a745' }}>
                   ✅ Pool Found on {results.dex}
                 </strong>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: '8px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: '8px', color: 'var(--text-primary)' }}>
                 <strong>Pair Address:</strong>
-                <span>{results.pairAddress}</span>
+                <span style={{ color: 'var(--text-secondary)' }}>{results.pairAddress}</span>
 
                 <strong>Token 0:</strong>
-                <span>{results.isToken0WETH ? 'WETH' : 'USDC'} ({results.token0.slice(0, 10)}...)</span>
+                <span style={{ color: 'var(--text-secondary)' }}>{results.isToken0WETH ? 'WETH' : 'USDC'} ({results.token0.slice(0, 10)}...)</span>
 
                 <strong>Token 1:</strong>
-                <span>{results.isToken0WETH ? 'USDC' : 'WETH'} ({results.token1.slice(0, 10)}...)</span>
+                <span style={{ color: 'var(--text-secondary)' }}>{results.isToken0WETH ? 'USDC' : 'WETH'} ({results.token1.slice(0, 10)}...)</span>
 
                 <strong>WETH Reserve:</strong>
-                <span>{parseFloat(results.reserves.weth).toFixed(4)} WETH</span>
+                <span style={{ color: 'var(--text-secondary)' }}>{parseFloat(results.reserves.weth).toFixed(4)} WETH</span>
 
                 <strong>USDC Reserve:</strong>
-                <span>{parseFloat(results.reserves.usdc).toLocaleString()} USDC</span>
+                <span style={{ color: 'var(--text-secondary)' }}>{parseFloat(results.reserves.usdc).toLocaleString()} USDC</span>
 
                 <strong>Total LP Supply:</strong>
-                <span>{parseFloat(results.totalSupply).toFixed(6)} LP</span>
+                <span style={{ color: 'var(--text-secondary)' }}>{parseFloat(results.totalSupply).toFixed(6)} LP</span>
 
-                <div style={{ gridColumn: '1 / -1', height: '1px', backgroundColor: '#ccc', margin: '8px 0' }} />
+                <div style={{ gridColumn: '1 / -1', height: '1px', backgroundColor: 'var(--border-color)', margin: '8px 0' }} />
 
-                <strong style={{ color: '#0056b3' }}>Pool Ratio:</strong>
-                <span style={{ fontWeight: 'bold', color: '#0056b3' }}>
+                <strong style={{ color: '#2196F3' }}>Pool Ratio:</strong>
+                <span style={{ fontWeight: 'bold', color: '#2196F3' }}>
                   1 WETH = {results.ratio} USDC
                 </span>
 
-                <div style={{ gridColumn: '1 / -1', height: '1px', backgroundColor: '#ccc', margin: '8px 0' }} />
+                <div style={{ gridColumn: '1 / -1', height: '1px', backgroundColor: 'var(--border-color)', margin: '8px 0' }} />
 
                 <strong style={{ color: '#28a745' }}>Calculation Test:</strong>
-                <span style={{ fontWeight: 'bold' }}>
+                <span style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>
                   {results.calculation.input} → {results.calculation.formatted}
                 </span>
               </div>
@@ -221,9 +292,11 @@ export function PoolDiagnostic() {
               <div style={{ 
                 marginTop: '15px', 
                 padding: '10px', 
-                backgroundColor: '#cfe2ff',
+                backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                border: '1px solid rgba(33, 150, 243, 0.3)',
                 borderRadius: '4px',
-                fontSize: '12px'
+                fontSize: '12px',
+                color: 'var(--text-primary)'
               }}>
                 <strong>💡 Expected Behavior:</strong>
                 <br />
@@ -234,9 +307,11 @@ export function PoolDiagnostic() {
                 <div style={{ 
                   marginTop: '10px', 
                   padding: '10px', 
-                  backgroundColor: '#fff3cd',
+                  backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                  border: '1px solid rgba(255, 193, 7, 0.3)',
                   borderRadius: '4px',
-                  fontSize: '12px'
+                  fontSize: '12px',
+                  color: 'var(--text-primary)'
                 }}>
                   ⚠️ <strong>Note:</strong> There's a small rounding difference in display vs actual calculation.
                 </div>
@@ -244,10 +319,10 @@ export function PoolDiagnostic() {
             </>
           ) : (
             <div>
-              <strong style={{ color: '#856404' }}>⚠️ {results.message}</strong>
-              <p style={{ marginTop: '10px', fontSize: '12px' }}>
+              <strong style={{ color: '#ffc107' }}>⚠️ {results.message}</strong>
+              <p style={{ marginTop: '10px', fontSize: '12px', color: 'var(--text-secondary)' }}>
                 This pair might not have liquidity on SushiSwap. 
-                Check <a href="https://analytics.sushi.com/arbitrum/pairs" target="_blank">SushiSwap Analytics</a>
+                Check <a href="https://analytics.sushi.com/arbitrum/pairs" target="_blank" style={{ color: '#2196F3' }}>SushiSwap Analytics</a>
               </p>
             </div>
           )}
@@ -257,16 +332,18 @@ export function PoolDiagnostic() {
       <div style={{ 
         marginTop: '15px', 
         padding: '10px', 
-        backgroundColor: '#e7f3ff',
+        backgroundColor: 'rgba(33, 150, 243, 0.1)',
+        border: '1px solid rgba(33, 150, 243, 0.3)',
         borderRadius: '6px',
-        fontSize: '11px'
+        fontSize: '11px',
+        color: 'var(--text-primary)'
       }}>
         <strong>ℹ️ About DEX Differences:</strong>
-        <ul style={{ marginLeft: '20px', marginTop: '5px' }}>
+        <ul style={{ marginLeft: '20px', marginTop: '5px', color: 'var(--text-secondary)' }}>
           <li>Different DEXs (Uniswap vs SushiSwap) have separate pools</li>
           <li>Same token pair can have different prices on each DEX</li>
           <li>This is normal and creates arbitrage opportunities</li>
-          <li>Your app uses: <strong>SushiSwap</strong> (V2-compatible)</li>
+          <li>Your app uses: <strong style={{ color: 'var(--text-primary)' }}>SushiSwap</strong> (V2-compatible)</li>
           <li>To match uniswap.org exactly, you'd need to use Uniswap V3</li>
         </ul>
       </div>

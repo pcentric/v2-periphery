@@ -1203,10 +1203,17 @@ export function LiquidityComponent() {
             {/* Token B Input */}
             <div className={`token-input-box ${tokenB && !tokenBHook.isValid && !tokenBHook.loading ? 'has-error' : ''}`} style={{ position: 'relative' }}>
               <div className="token-input-row">
-                <span className="token-input-label">
+                <span className="token-input-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   Token B 
-                  <span style={{ fontSize: '11px', color: '#94a3b8', marginLeft: '6px', fontWeight: 'normal' }}>
-                    (auto-calculated)
+                  <span style={{ 
+                    fontSize: '11px', 
+                    color: 'var(--text-tertiary)', 
+                    fontWeight: 'normal',
+                    background: 'var(--bg-tertiary)',
+                    padding: '2px 6px',
+                    borderRadius: '4px'
+                  }}>
+                    auto-calculated
                   </span>
                 </span>
                 {balanceB && (
@@ -1240,12 +1247,12 @@ export function LiquidityComponent() {
 
               {/* Auto-calculation message */}
               {tokenAHook.isValid && tokenBHook.isValid && amountB && (
-                <div className="token-status info" style={{ color: '#6366f1', fontSize: '12px', marginTop: '4px' }}>
+                <div className="token-status info" style={{ fontSize: '12px', marginTop: '8px' }}>
                   💡 Amount based on current pool ratio (1 {tokenAHook.symbol} = {amountB} {tokenBHook.symbol})
                 </div>
               )}
               {tokenAHook.isValid && tokenBHook.isValid && !amountB && amountA && (
-                <div className="token-status info" style={{ color: '#94a3b8', fontSize: '12px', marginTop: '4px' }}>
+                <div className="token-status info" style={{ fontSize: '12px', marginTop: '8px' }}>
                   ⏳ Calculating optimal amount...
                 </div>
               )}
@@ -1294,22 +1301,36 @@ export function LiquidityComponent() {
                 {/* Price Ratio */}
                 {priceRatio ? (
                   <>
-                    <div className="preview-stat" style={{ backgroundColor: '#f0f9ff', padding: '8px', borderRadius: '6px', marginBottom: '8px' }}>
-                      <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>
+                    <div className="preview-stat" style={{ 
+                      backgroundColor: 'rgba(33, 114, 229, 0.1)', 
+                      padding: '12px', 
+                      borderRadius: '8px', 
+                      marginBottom: '8px',
+                      border: '1px solid rgba(33, 114, 229, 0.2)'
+                    }}>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '6px', fontWeight: '600' }}>
                         📊 Current Pool Price
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span className="label">1 {tokenAHook.symbol} =</span>
-                        <span className="value" style={{ fontWeight: 'bold', color: '#2563eb' }}>
+                        <span className="label" style={{ color: 'var(--text-secondary)' }}>1 {tokenAHook.symbol} =</span>
+                        <span className="value" style={{ fontWeight: 'bold', color: 'var(--blue-primary)' }}>
                           {priceRatio.priceAtoB} {tokenBHook.symbol}
                         </span>
                       </div>
                     </div>
-                    <div className="preview-stat" style={{ fontSize: '12px', opacity: 0.8 }}>
+                    <div className="preview-stat" style={{ fontSize: '12px', opacity: 0.9 }}>
                       <span className="label">1 {tokenBHook.symbol} =</span>
                       <span className="value">{priceRatio.priceBtoA} {tokenAHook.symbol}</span>
                     </div>
-                    <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px', padding: '8px', backgroundColor: '#f8fafc', borderRadius: '4px' }}>
+                    <div style={{ 
+                      fontSize: '11px', 
+                      color: 'var(--text-secondary)', 
+                      marginTop: '8px', 
+                      padding: '10px', 
+                      backgroundColor: 'var(--bg-tertiary)', 
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-color)'
+                    }}>
                       ℹ️ You must add liquidity at the pool's current price ratio, not USD values
                     </div>
                   </>

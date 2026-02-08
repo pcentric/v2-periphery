@@ -29,10 +29,22 @@ const MIN_LIQUIDITY_USD = 1000;
 // Cache for pair data
 let pairMappingCache = null;
 let cacheTimestamp = null;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes for better performance
+
+// Cache for individual pair queries
+const pairQueryCache = new Map();
+const PAIR_QUERY_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes for individual queries
 
 // Development mode flag
 const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_POOLS === 'true';
+
+// Prefetch commonly traded pairs for instant loading
+const PRIORITY_PAIRS = [
+  ['USDT', 'USDC'], // Most common stablecoin pair
+  ['WETH', 'USDC'],
+  ['WETH', 'USDT'],
+  ['WETH', 'ARB'],
+];
 
 /**
  * Mock pool data for development/testing
@@ -81,7 +93,7 @@ function getMockPools() {
  * @param {number} first - Number of pairs to fetch
  * @returns {Promise<Array>} Array of pair objects
  */
-export async function fetchPools(first = 1000) {
+export async function fetchPools(first = 300) { // Reduced to 300 for faster initial load
   // Use mock data for development if enabled
   if (USE_MOCK_DATA) {
     console.log('🔧 Using mock pool data for development');
@@ -289,32 +301,25 @@ export async function fetchPairMapping(forceRefresh = false) {
   }
   
   try {
-    console.log('Fetching pools from subgraph...');
+    console.log('⚡ Fetching pools from subgraph (optimized)...');
+    const startTime = Date.now();
     
-    // Fetch pools from subgraph
-    const pools = await fetchPools(1000);
-    console.log(`Fetched ${pools.length} pools from subgraph`);
+    // Fetch pools from subgraph with reduced count for faster loading
+    const pools = await fetchPools(300);
+    console.log(`✅ Fetched ${pools.length} pools in ${Date.now() - startTime}ms`);
     
     // Filter to only include verified tokens
     const verifiedPools = filterVerifiedPools(pools);
-    console.log(`Found ${verifiedPools.length} pools with verified tokens`);
+    console.log(`✅ Found ${verifiedPools.length} pools with verified tokens`);
     
     // Build pair mapping
     const mapping = buildPairMapping(verifiedPools);
-    console.log(`Built pair mapping for ${Object.keys(mapping).length} tokens`);
+    console.log(`✅ Built pair mapping for ${Object.keys(mapping).length} tokens`);
     
-    // Log the pairs for each verified token
+    // Log summary instead of all pairs (reduces console noise)
     const tokenMap = getTokenAddressMap();
-    Object.entries(mapping).forEach(([tokenAddr, swappableAddrs]) => {
-      const token = tokenMap.get(tokenAddr);
-      const swappableTokens = swappableAddrs
-        .map(addr => tokenMap.get(addr)?.symbol)
-        .filter(Boolean);
-      
-      if (token) {
-        console.log(`${token.symbol} can swap with: ${swappableTokens.join(', ')}`);
-      }
-    });
+    const pairCount = Object.values(mapping).reduce((sum, arr) => sum + arr.length, 0) / 2;
+    console.log(`📊 Summary: ${Object.keys(mapping).length} tokens with ${pairCount} unique pairs`);
     
     // Update cache
     pairMappingCache = mapping;
@@ -357,5 +362,35 @@ export function getCacheStatus() {
     age,
     stale: age > CACHE_DURATION,
   };
+}
+
+/**
+ * Get cached pair query result
+ * @param {string} key - Cache key
+ * @returns {any|null} Cached result or null
+ */
+export function getCachedPairQuery(key) {
+  const cached = pairQueryCache.get(key);
+  if (!cached) return null;
+  
+  const age = Date.now() - cached.timestamp;
+  if (age > PAIR_QUERY_CACHE_DURATION) {
+    pairQueryCache.delete(key);
+    return null;
+  }
+  
+  return cached.data;
+}
+
+/**
+ * Set cached pair query result
+ * @param {string} key - Cache key
+ * @param {any} data - Data to cache
+ */
+export function setCachedPairQuery(key, data) {
+  pairQueryCache.set(key, {
+    data,
+    timestamp: Date.now()
+  });
 }
 

@@ -115,6 +115,38 @@ export function useRouter(provider, signer) {
   );
 
   /**
+   * Swap exact tokens for ETH
+   */
+  const swapExactTokensForETH = useCallback(
+    async (amountIn, amountOutMin, path, deadline = getDeadline()) => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const router = getRouterContract();
+        const signerAddress = await signer.getAddress();
+
+        const tx = await router.swapExactTokensForETH(
+          amountIn,
+          amountOutMin,
+          path,
+          signerAddress,
+          deadline
+        );
+
+        const receipt = await tx.wait();
+        setLoading(false);
+        return receipt;
+      } catch (err) {
+        setError(err.message);
+        setLoading(false);
+        throw err;
+      }
+    },
+    [signer, getRouterContract]
+  );
+
+  /**
    * Swap tokens for exact ETH
    */
   const swapTokensForExactETH = useCallback(
@@ -310,6 +342,7 @@ export function useRouter(provider, signer) {
     swapExactTokensForTokens,
     swapTokensForExactTokens,
     swapExactETHForTokens,
+    swapExactTokensForETH,
     swapTokensForExactETH,
     addLiquidity,
     removeLiquidity,
