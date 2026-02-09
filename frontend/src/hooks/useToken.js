@@ -1,11 +1,37 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import { CONTRACT_ABIS, CONTRACT_ADDRESSES, GAS_LIMITS } from '../config/contracts';
 import { isValidAddress, getErrorMessage } from '../utils/validation';
 import { NATIVE_ETH_ADDRESS, VERIFIED_TOKENS, isNativeToken } from '../constants/tokens';
 
+// 🚀 OPTIMIZATION: Token metadata cache to prevent duplicate fetches
+const tokenMetadataCache = new Map();
+const METADATA_CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+
 /**
- * Hook for interacting with ERC20 tokens
+ * Get cached metadata if available and fresh
+ */
+function getCachedMetadata(tokenAddress) {
+  const cached = tokenMetadataCache.get(tokenAddress.toLowerCase());
+  if (cached && Date.now() - cached.timestamp < METADATA_CACHE_DURATION) {
+    return cached.data;
+  }
+  return null;
+}
+
+/**
+ * Set metadata in cache
+ */
+function setCachedMetadata(tokenAddress, metadata) {
+  tokenMetadataCache.set(tokenAddress.toLowerCase(), {
+    data: metadata,
+    timestamp: Date.now()
+  });
+}
+
+/**
+ * 🚀 OPTIMIZED Hook for interacting with ERC20 tokens
+ * Includes caching to prevent duplicate metadata fetches
  * @param {string} tokenAddress - Token contract address
  * @param {object} provider - Ethers provider
  * @param {object} signer - Ethers signer (optional)
@@ -19,6 +45,7 @@ export function useToken(tokenAddress, provider, signer = null) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isValid, setIsValid] = useState(false);
+  const fetchInProgressRef = useRef(false);
 
   // Get token contract instance
   const getTokenContract = useCallback(
@@ -32,6 +59,7 @@ export function useToken(tokenAddress, provider, signer = null) {
 
   /**
    * Fetch token metadata (name, symbol, decimals)
+   * 🚀 OPTIMIZED with caching and request deduplication
    */
   const fetchMetadata = useCallback(async () => {
     if (!tokenAddress || !provider) {
@@ -46,6 +74,24 @@ export function useToken(tokenAddress, provider, signer = null) {
       return;
     }
 
+    // 🚀 OPTIMIZATION: Check cache first
+    const cached = getCachedMetadata(tokenAddress);
+    if (cached) {
+      console.log(`⚡ Using cached metadata for ${tokenAddress}`);
+      setMetadata(cached);
+      setIsValid(true);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
+    // 🚀 OPTIMIZATION: Prevent duplicate concurrent fetches
+    if (fetchInProgressRef.current) {
+      console.log(`⏳ Fetch already in progress for ${tokenAddress}`);
+      return;
+    }
+
+    fetchInProgressRef.current = true;
     setLoading(true);
     setError(null);
 
@@ -53,13 +99,16 @@ export function useToken(tokenAddress, provider, signer = null) {
       // ✅ Handle Native ETH - no contract calls needed
       if (isNativeToken(tokenAddress)) {
         const ethToken = VERIFIED_TOKENS.ETH;
-        setMetadata({
+        const ethMetadata = {
           name: ethToken.name,
           symbol: ethToken.symbol,
           decimals: ethToken.decimals
-        });
+        };
+        setMetadata(ethMetadata);
         setIsValid(true);
+        setCachedMetadata(tokenAddress, ethMetadata);
         setLoading(false);
+        fetchInProgressRef.current = false;
         return;
       }
       // First check if there's contract code at the address
@@ -156,14 +205,21 @@ export function useToken(tokenAddress, provider, signer = null) {
         }
       }
 
-      setMetadata({ name, symbol, decimals });
+      const tokenMetadata = { name, symbol, decimals };
+      setMetadata(tokenMetadata);
       setIsValid(true);
+      
+      // 🚀 OPTIMIZATION: Cache the metadata
+      setCachedMetadata(tokenAddress, tokenMetadata);
+      
       setLoading(false);
     } catch (err) {
       console.error('Token metadata fetch error:', err);
       setError(getErrorMessage(err));
       setIsValid(false);
       setLoading(false);
+    } finally {
+      fetchInProgressRef.current = false;
     }
   }, [tokenAddress, provider]);
 

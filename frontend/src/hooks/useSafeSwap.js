@@ -4,32 +4,42 @@
  * Handles pair mapping and dynamic token filtering
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { getTokenList, getTokenByAddress } from '../constants/tokens';
 import { fetchPairMapping, getSwappableTokens } from '../services/pairService';
 
 /**
- * Hook for safe token swapping
- * @returns {Object} - { tokens, pairMapping, loading, error, getOutputTokens, refresh }
+ * 🚀 OPTIMIZED Hook for safe token swapping with fast initial load
+ * @returns {Object} - { tokens, pairMapping, loading, error, getOutputTokens, refresh, isInitialLoad }
  */
 export function useSafeSwap() {
   const [pairMapping, setPairMapping] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const hasLoadedRef = useRef(false);
 
-  // Get all verified tokens
+  // Get all verified tokens (memoized)
   const tokens = useMemo(() => getTokenList(), []);
 
   /**
-   * Load pair mapping from subgraph
+   * Load pair mapping from subgraph with optimizations
    */
   const loadPairMapping = useCallback(async (forceRefresh = false) => {
+    // Prevent duplicate loads
+    if (hasLoadedRef.current && !forceRefresh) {
+      console.log('⚡ Pair mapping already loaded, skipping...');
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
 
       const mapping = await fetchPairMapping(forceRefresh);
       setPairMapping(mapping);
+      hasLoadedRef.current = true;
+      setIsInitialLoad(false);
 
       console.log('✅ Pair mapping loaded successfully');
     } catch (err) {
@@ -109,9 +119,11 @@ export function useSafeSwap() {
     };
   }, [tokens, pairMapping, loading, error]);
 
-  // Load pair mapping on mount
+  // Load pair mapping on mount (only once)
   useEffect(() => {
-    loadPairMapping();
+    if (!hasLoadedRef.current) {
+      loadPairMapping();
+    }
   }, [loadPairMapping]);
 
   return {
@@ -122,6 +134,7 @@ export function useSafeSwap() {
     // Loading state
     loading,
     error,
+    isInitialLoad, // 🚀 New: Helps UI show better loading states
     
     // Helper functions
     getOutputTokens,

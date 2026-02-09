@@ -205,8 +205,15 @@ export function SwapComponent() {
   // Modal state
   const [activeModal, setActiveModal] = useState(null); // 'tokenIn' | 'tokenOut' | null
 
-  // Safe swap hook - provides verified tokens and pair mapping
-  const { tokens, pairMapping, loading: pairMappingLoading, error: pairMappingError, canSwap } = useSafeSwap();
+  // Safe swap hook - provides verified tokens and pair mapping with fast initial load
+  const { 
+    tokens, 
+    pairMapping, 
+    loading: pairMappingLoading, 
+    error: pairMappingError, 
+    canSwap,
+    isInitialLoad 
+  } = useSafeSwap();
   
   // Get filtered output tokens based on selected input token - use WETH address for native ETH
   const filteredOutputTokens = useFilteredOutputTokens(getAddressForRouting(tokenIn), pairMapping);
@@ -257,10 +264,9 @@ export function SwapComponent() {
     }
   }, [provider, signer, active, userAddress, chainId]);
 
-  // Fetch balances
+  // 🚀 OPTIMIZED: Fetch balances with parallel requests and proper cancellation
   useEffect(() => {
     if (!userAddress) {
-      
       setBalanceIn(null);
       setBalanceOut(null);
       return;
@@ -269,38 +275,46 @@ export function SwapComponent() {
     let isCancelled = false;
 
     const fetchBalances = async () => {
-      // Fetch input token balance
+      // 🚀 Fetch both balances in parallel for better performance
+      const promises = [];
+      
       if (tokenInHook.isValid) {
-        try {
-          const bal = await tokenInHook.getBalance(userAddress);
-          if (!isCancelled) {
-            setBalanceIn(bal);
-          }
-        } catch (e) {
-          console.error('Failed to fetch input token balance:', e.message);
-          if (!isCancelled) {
-            setBalanceIn(null);
-          }
-        }
+        promises.push(
+          tokenInHook.getBalance(userAddress)
+            .then(bal => ({ type: 'in', balance: bal }))
+            .catch(e => {
+              console.error('Failed to fetch input token balance:', e.message);
+              return { type: 'in', balance: null };
+            })
+        );
       } else {
-        setBalanceIn(null);
+        promises.push(Promise.resolve({ type: 'in', balance: null }));
       }
 
-      // Fetch output token balance
       if (tokenOutHook.isValid) {
-        try {
-          const bal = await tokenOutHook.getBalance(userAddress);
-          if (!isCancelled) {
-            setBalanceOut(bal);
-          }
-        } catch (e) {
-          console.error('Failed to fetch output token balance:', e.message);
-          if (!isCancelled) {
-            setBalanceOut(null);
-          }
-        }
+        promises.push(
+          tokenOutHook.getBalance(userAddress)
+            .then(bal => ({ type: 'out', balance: bal }))
+            .catch(e => {
+              console.error('Failed to fetch output token balance:', e.message);
+              return { type: 'out', balance: null };
+            })
+        );
       } else {
-        setBalanceOut(null);
+        promises.push(Promise.resolve({ type: 'out', balance: null }));
+      }
+
+      // Wait for all balances to load
+      const results = await Promise.all(promises);
+      
+      if (!isCancelled) {
+        results.forEach(result => {
+          if (result.type === 'in') {
+            setBalanceIn(result.balance);
+          } else {
+            setBalanceOut(result.balance);
+          }
+        });
       }
     };
 
@@ -879,23 +893,31 @@ export function SwapComponent() {
             background: 'var(--bg-module)',
             borderRadius: '12px',
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '0.75rem'
+            gap: '0.5rem'
           }}>
-            <div className="spinner" style={{ width: '20px', height: '20px' }}>
-              <svg viewBox="0 0 50 50" style={{ animation: 'rotate 2s linear infinite' }}>
-                <circle
-                  className="spinner-path"
-                  cx="25"
-                  cy="25"
-                  r="20"
-                  fill="none"
-                  strokeWidth="4"
-                />
-              </svg>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div className="spinner" style={{ width: '20px', height: '20px' }}>
+                <svg viewBox="0 0 50 50" style={{ animation: 'rotate 2s linear infinite' }}>
+                  <circle
+                    className="spinner-path"
+                    cx="25"
+                    cy="25"
+                    r="20"
+                    fill="none"
+                    strokeWidth="4"
+                  />
+                </svg>
+              </div>
+              {isInitialLoad ? 'Loading liquidity pools...' : 'Refreshing pools...'}
             </div>
-            Loading liquidity pools...
+            {isInitialLoad && (
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)' }}>
+                ⚡ Using optimized parallel loading for faster response
+              </div>
+            )}
           </div>
         </div>
       )}
