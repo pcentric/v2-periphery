@@ -883,41 +883,34 @@ export function SwapComponent() {
         </button>
       </div>
 
-      {/* Loading/Error Messages */}
-      {pairMappingLoading && (
-        <div className="swap-body" style={{ animation: 'fadeInUp 0.3s ease-out' }}>
+      {/* Loading/Error Messages - Only show during initial load and only as inline indicator */}
+      {pairMappingLoading && isInitialLoad && (
+        <div className="swap-body">
           <div style={{ 
-            padding: '1rem', 
+            padding: '0.75rem', 
             textAlign: 'center',
             color: 'var(--text-secondary)',
-            background: 'var(--bg-module)',
-            borderRadius: '12px',
+            background: 'var(--bg-tertiary)',
+            borderRadius: '8px',
+            fontSize: '0.875rem',
             display: 'flex',
-            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
             gap: '0.5rem'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <div className="spinner" style={{ width: '20px', height: '20px' }}>
-                <svg viewBox="0 0 50 50" style={{ animation: 'rotate 2s linear infinite' }}>
-                  <circle
-                    className="spinner-path"
-                    cx="25"
-                    cy="25"
-                    r="20"
-                    fill="none"
-                    strokeWidth="4"
-                  />
-                </svg>
-              </div>
-              {isInitialLoad ? 'Loading liquidity pools...' : 'Refreshing pools...'}
+            <div className="spinner" style={{ width: '14px', height: '14px' }}>
+              <svg viewBox="0 0 50 50" style={{ animation: 'rotate 2s linear infinite' }}>
+                <circle
+                  className="spinner-path"
+                  cx="25"
+                  cy="25"
+                  r="20"
+                  fill="none"
+                  strokeWidth="4"
+                />
+              </svg>
             </div>
-            {isInitialLoad && (
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)' }}>
-                ⚡ Using optimized parallel loading for faster response
-              </div>
-            )}
+            Loading token pairs...
           </div>
         </div>
       )}
@@ -952,7 +945,7 @@ export function SwapComponent() {
         selectedToken={tokenOutHook.isValid ? { id: tokenOut.toLowerCase(), ...tokenOutHook } : null}
         onSelectToken={(token) => handleTokenSelect(token, 'out')}
         onClose={() => setActiveModal(null)}
-        title={tokenIn ? `Select output token (compatible with ${tokenInHook.symbol || 'selected token'})` : 'Select output token'}
+        title="Select output token"
       />
     </div>
   );

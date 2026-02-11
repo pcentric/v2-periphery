@@ -154,14 +154,23 @@ export function useFilteredOutputTokens(inputTokenAddress, pairMapping) {
   return useMemo(() => {
     const allTokens = getTokenList();
     
-    if (!inputTokenAddress || !pairMapping) {
+    // ✅ If no input token selected, show all tokens
+    if (!inputTokenAddress) {
+      return allTokens;
+    }
+    
+    // ✅ If pair mapping is empty or not loaded, show all tokens
+    if (!pairMapping || Object.keys(pairMapping).length === 0) {
       return allTokens;
     }
 
     const swappableAddresses = getSwappableTokens(inputTokenAddress, pairMapping);
     
+    // ✅ If no swappable tokens found, still show all tokens (user can pick any)
+    // The swap validation will show appropriate error message
     if (swappableAddresses.length === 0) {
-      return [];
+      console.warn(`No liquidity pairs found for ${inputTokenAddress}, showing all tokens`);
+      return allTokens;
     }
 
     // Filter tokens to only include swappable ones
