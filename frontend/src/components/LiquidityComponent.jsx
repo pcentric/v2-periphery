@@ -16,6 +16,7 @@ import {
   applySlippage
 } from '../utils/calculations';
 import { TransactionModal } from './TransactionModal';
+import { ApprovalModal } from './ApprovalModal';
 
 // Icons
 const ChevronDownIcon = () => (
@@ -217,6 +218,15 @@ export function LiquidityComponent() {
 
   // Modal state
   const [activeModal, setActiveModal] = useState(null); // 'tokenA' | 'tokenB' | null
+  
+  // Approval modal state
+  const [approvalModal, setApprovalModal] = useState({
+    isOpen: false,
+    token: null,
+    amount: null,
+    spender: null,
+    tokenType: null, // 'A' or 'B'
+  });
 
   // Transaction modal state
   const [txModal, setTxModal] = useState({
@@ -543,6 +553,23 @@ export function LiquidityComponent() {
         // Calculate based on pool ratio: amountB = (amountA * reserveB) / reserveA
         const amountAParsed = parseTokenAmount(amountA, tokenAHook.decimals);
         
+        // ✅ Calculate correct pool ratio for logging
+        const decimalDiff = tokenAHook.decimals - tokenBHook.decimals;
+        let poolRatioFormatted;
+        if (decimalDiff >= 0) {
+          poolRatioFormatted = formatTokenAmount(
+            reserveB.mul(ethers.BigNumber.from(10).pow(decimalDiff)).div(reserveA),
+            tokenBHook.decimals,
+            2
+          );
+        } else {
+          poolRatioFormatted = formatTokenAmount(
+            reserveB.div(ethers.BigNumber.from(10).pow(Math.abs(decimalDiff))).div(reserveA),
+            tokenBHook.decimals,
+            2
+          );
+        }
+        
         console.log('📊 Calculation details:', {
           amountA: amountA,
           amountAParsed: amountAParsed.toString(),
@@ -554,7 +581,7 @@ export function LiquidityComponent() {
           reserveBFormatted: formatTokenAmount(reserveB, tokenBHook.decimals, 4),
           decimalsA: tokenAHook.decimals,
           decimalsB: tokenBHook.decimals,
-          poolRatio: `1 ${tokenAHook.symbol} = ${formatTokenAmount(reserveB.mul(ethers.BigNumber.from(10).pow(tokenAHook.decimals)).div(reserveA), tokenBHook.decimals, 2)} ${tokenBHook.symbol}`,
+          poolRatio: `1 ${tokenAHook.symbol} = ${poolRatioFormatted} ${tokenBHook.symbol}`,
         });
         
         // Direct calculation: (amountA * reserveB) / reserveA
@@ -659,19 +686,45 @@ export function LiquidityComponent() {
       return null;
     }
 
-    // Price of A in terms of B
-    const priceAtoB = formatTokenAmount(
-      reserveB.mul(ethers.BigNumber.from(10).pow(tokenAHook.decimals)).div(reserveA),
-      tokenBHook.decimals,
-      6
-    );
+    // ✅ FIXED: Correct price calculation accounting for decimal differences
+    // Price of A in terms of B: (reserveB / reserveA) normalized for decimals
+    // Formula: reserveB * 10^(decimalsA - decimalsB) / reserveA
+    const decimalDiff = tokenAHook.decimals - tokenBHook.decimals;
+    
+    let priceAtoB;
+    if (decimalDiff >= 0) {
+      // tokenA has more or equal decimals than tokenB (e.g., ETH 18, USDT 6)
+      priceAtoB = formatTokenAmount(
+        reserveB.mul(ethers.BigNumber.from(10).pow(decimalDiff)).div(reserveA),
+        tokenBHook.decimals,
+        6
+      );
+    } else {
+      // tokenB has more decimals than tokenA (rare case)
+      priceAtoB = formatTokenAmount(
+        reserveB.div(ethers.BigNumber.from(10).pow(Math.abs(decimalDiff))).div(reserveA),
+        tokenBHook.decimals,
+        6
+      );
+    }
 
-    // Price of B in terms of A
-    const priceBtoA = formatTokenAmount(
-      reserveA.mul(ethers.BigNumber.from(10).pow(tokenBHook.decimals)).div(reserveB),
-      tokenAHook.decimals,
-      6
-    );
+    // Price of B in terms of A: (reserveA / reserveB) normalized for decimals
+    const decimalDiffReverse = tokenBHook.decimals - tokenAHook.decimals;
+    
+    let priceBtoA;
+    if (decimalDiffReverse >= 0) {
+      priceBtoA = formatTokenAmount(
+        reserveA.mul(ethers.BigNumber.from(10).pow(decimalDiffReverse)).div(reserveB),
+        tokenAHook.decimals,
+        6
+      );
+    } else {
+      priceBtoA = formatTokenAmount(
+        reserveA.div(ethers.BigNumber.from(10).pow(Math.abs(decimalDiffReverse))).div(reserveB),
+        tokenAHook.decimals,
+        6
+      );
+    }
 
     return { priceAtoB, priceBtoA };
   }, [pair, tokenAHook, tokenBHook]);
@@ -714,33 +767,53 @@ export function LiquidityComponent() {
   const priceImpact = calculatePriceImpact();
   const isFirstLiquidity = !pair.reserves.reserve0 || pair.reserves.reserve0.isZero();
 
-  // Handle approve A
+  // Handle approve A - Show modal instead of directly approving
   const handleApproveA = async () => {
     if (!tokenAHook.isValid || !userAddress || !CONTRACT_ADDRESSES?.ROUTER) {
       console.error('Cannot approve: missing requirements');
       return;
     }
     
+    if (!amountA || parseFloat(amountA) <= 0) {
+      console.error('Invalid amount');
+      return;
+    }
+    
+    // ✅ SECURITY: Show approval modal instead of directly approving
+    const amount = parseTokenAmount(amountA, tokenAHook.decimals);
+    setApprovalModal({
+      isOpen: true,
+      token: {
+        symbol: tokenAHook.symbol,
+        decimals: tokenAHook.decimals,
+      },
+      amount: amount,
+      spender: CONTRACT_ADDRESSES.ROUTER,
+      tokenType: 'A',
+    });
+  };
+
+  // Handle approval confirmation from modal for Token A
+  const handleApprovalConfirmA = async (approvalAmount) => {
     try {
-      console.log('🔓 Approving Token A (unlimited)...', {
+      console.log('🔓 Approving Token A...', {
         token: tokenAHook.symbol,
         spender: CONTRACT_ADDRESSES.ROUTER,
+        amount: approvalAmount.toString(),
+        isUnlimited: approvalAmount.eq(ethers.constants.MaxUint256),
       });
       
-      // Approve MAX amount so user doesn't need to approve again
-      const maxAmount = ethers.constants.MaxUint256;
-      const receipt = await tokenAHook.ensureApproval(userAddress, CONTRACT_ADDRESSES.ROUTER, maxAmount);
-      console.log(receipt, "receipt")
-      if (receipt && receipt.status === 1 && receipt.wait) {
+      const receipt = await tokenAHook.approve(CONTRACT_ADDRESSES.ROUTER, approvalAmount);
+      
+      if (receipt && receipt.wait) {
         console.log('⏳ Waiting for Token A approval transaction...');
         await receipt.wait();
-        console.log('✅ Token A approved (unlimited)');
-      } else {
-        console.log('ℹ️ Token A already approved');
+        console.log('✅ Token A approved');
       }
       
       // Update state immediately
       setIsApprovedA(true);
+      setApprovalModal({ ...approvalModal, isOpen: false });
       
       // Trigger re-check of approvals
       setApprovalCheckTrigger(prev => prev + 1);
@@ -754,37 +827,57 @@ export function LiquidityComponent() {
       } else {
         alert(`Failed to approve ${tokenAHook.symbol}: ${err.message}`);
       }
+      setApprovalModal({ ...approvalModal, isOpen: false });
     }
   };
 
-  // Handle approve B
+  // Handle approve B - Show modal instead of directly approving
   const handleApproveB = async () => {
     if (!tokenBHook.isValid || !userAddress || !CONTRACT_ADDRESSES?.ROUTER) {
       console.error('Cannot approve: missing requirements');
       return;
     }
     
+    if (!amountB || parseFloat(amountB) <= 0) {
+      console.error('Invalid amount');
+      return;
+    }
+    
+    // ✅ SECURITY: Show approval modal instead of directly approving
+    const amount = parseTokenAmount(amountB, tokenBHook.decimals);
+    setApprovalModal({
+      isOpen: true,
+      token: {
+        symbol: tokenBHook.symbol,
+        decimals: tokenBHook.decimals,
+      },
+      amount: amount,
+      spender: CONTRACT_ADDRESSES.ROUTER,
+      tokenType: 'B',
+    });
+  };
+
+  // Handle approval confirmation from modal for Token B
+  const handleApprovalConfirmB = async (approvalAmount) => {
     try {
-      console.log('🔓 Approving Token B (unlimited)...', {
+      console.log('🔓 Approving Token B...', {
         token: tokenBHook.symbol,
         spender: CONTRACT_ADDRESSES.ROUTER,
+        amount: approvalAmount.toString(),
+        isUnlimited: approvalAmount.eq(ethers.constants.MaxUint256),
       });
       
-      // Approve MAX amount so user doesn't need to approve again
-      const maxAmount = ethers.constants.MaxUint256;
-      const receipt = await tokenBHook.ensureApproval(userAddress, CONTRACT_ADDRESSES.ROUTER, maxAmount);
-      console.log(receipt, "receipt")
+      const receipt = await tokenBHook.approve(CONTRACT_ADDRESSES.ROUTER, approvalAmount);
       
-      if (receipt && receipt.status === 1 && receipt.wait) {
+      if (receipt && receipt.wait) {
         console.log('⏳ Waiting for Token B approval transaction...');
         await receipt.wait();
-        console.log('✅ Token B approved (unlimited)');
-      } else {
-        console.log('ℹ️ Token B already approved');
+        console.log('✅ Token B approved');
       }
       
       // Update state immediately
       setIsApprovedB(true);
+      setApprovalModal({ ...approvalModal, isOpen: false });
       
       // Trigger re-check of approvals
       setApprovalCheckTrigger(prev => prev + 1);
@@ -800,6 +893,7 @@ export function LiquidityComponent() {
       } else {
         alert(`Failed to approve ${tokenBHook.symbol}: ${err.message}`);
       }
+      setApprovalModal({ ...approvalModal, isOpen: false });
     }
   };
 
@@ -1680,6 +1774,16 @@ export function LiquidityComponent() {
         error={txModal.error}
         txType={txModal.type}
         onClose={() => setTxModal({ ...txModal, isOpen: false })}
+      />
+
+      {/* Approval Modal - Security Feature */}
+      <ApprovalModal
+        isOpen={approvalModal.isOpen}
+        token={approvalModal.token}
+        amount={approvalModal.amount}
+        spender={approvalModal.spender}
+        onApprove={approvalModal.tokenType === 'A' ? handleApprovalConfirmA : handleApprovalConfirmB}
+        onCancel={() => setApprovalModal({ ...approvalModal, isOpen: false })}
       />
     </div>
   );

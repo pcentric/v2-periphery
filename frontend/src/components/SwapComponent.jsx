@@ -13,7 +13,8 @@ import {
   getDeadline
 } from '../utils/calculations';
 import { useSafeSwap, useSwapValidation, useFilteredOutputTokens } from '../hooks/useSafeSwap';
-import { VERIFIED_TOKENS, getAddressForRouting, isNativeToken } from '../constants/tokens';                                                                                               
+import { VERIFIED_TOKENS, getAddressForRouting, isNativeToken } from '../constants/tokens';
+import { ApprovalModal } from './ApprovalModal';
                                           
 // Icons
 const SettingsIcon = () => (
@@ -204,6 +205,14 @@ export function SwapComponent() {
 
   // Modal state
   const [activeModal, setActiveModal] = useState(null); // 'tokenIn' | 'tokenOut' | null
+  
+  // Approval modal state
+  const [approvalModal, setApprovalModal] = useState({
+    isOpen: false,
+    token: null,
+    amount: null,
+    spender: null,
+  });
 
   // Safe swap hook - provides verified tokens and pair mapping with fast initial load
   const { 
@@ -487,52 +496,69 @@ export function SwapComponent() {
     setActiveModal(null);
   };
 
-  // Handle approval
+  // Handle approval - Show modal instead of directly approving
   const handleApprove = async () => {
+    // Validation checks
+    if (!signer) {
+      console.error('No signer available. Please connect your wallet.');
+      alert('Please connect your wallet first');
+      return;
+    }
+
+    if (!userAddress) {
+      console.error('User address not set');
+      alert('Unable to get wallet address. Please reconnect your wallet.');
+      return;
+    }
+
+    if (!CONTRACT_ADDRESSES?.ROUTER) {
+      console.error('Router address not configured');
+      alert('Router contract address is not configured. Please check your setup.');
+      return;
+    }
+
+    if (!tokenInHook.isValid) {
+      console.error('Input token is not valid');
+      alert('Please select a valid input token');
+      return;
+    }
+
+    if (!amountIn || parseFloat(amountIn) <= 0) {
+      console.error('Invalid amount');
+      alert('Please enter a valid amount');
+      return;
+    }
+
+    // ✅ SECURITY: Show approval modal instead of directly approving
+    const amount = parseTokenAmount(amountIn, tokenInHook.decimals);
+    setApprovalModal({
+      isOpen: true,
+      token: {
+        symbol: tokenInHook.symbol,
+        decimals: tokenInHook.decimals,
+      },
+      amount: amount,
+      spender: CONTRACT_ADDRESSES.ROUTER,
+    });
+  };
+
+  // Handle approval confirmation from modal
+  const handleApprovalConfirm = async (approvalAmount) => {
     try {
-      // Validation checks
-      if (!signer) {
-        console.error('No signer available. Please connect your wallet.');
-        alert('Please connect your wallet first');
-        return;
-      }
-
-      if (!userAddress) {
-        console.error('User address not set');
-        alert('Unable to get wallet address. Please reconnect your wallet.');
-        return;
-      }
-
-      if (!CONTRACT_ADDRESSES?.ROUTER) {
-        console.error('Router address not configured');
-        alert('Router contract address is not configured. Please check your setup.');
-        return;
-      }
-
-      if (!tokenInHook.isValid) {
-        console.error('Input token is not valid');
-        alert('Please select a valid input token');
-        return;
-      }
-
-      if (!amountIn || parseFloat(amountIn) <= 0) {
-        console.error('Invalid amount');
-        alert('Please enter a valid amount');
-        return;
-      }
-
       console.log('Approving token...', {
         token: tokenIn,
         symbol: tokenInHook.symbol,
         spender: CONTRACT_ADDRESSES.ROUTER,
-        amount: amountIn,
+        amount: approvalAmount.toString(),
+        isUnlimited: approvalAmount.eq(ethers.constants.MaxUint256),
       });
 
-      const amount = parseTokenAmount(amountIn, tokenInHook.decimals);
-      await tokenInHook.ensureApproval(userAddress, CONTRACT_ADDRESSES.ROUTER, amount);
+      // Use tokenInHook.approve directly with the chosen amount
+      await tokenInHook.approve(CONTRACT_ADDRESSES.ROUTER, approvalAmount);
       
       console.log('✅ Approval successful');
       setIsApproved(true);
+      setApprovalModal({ ...approvalModal, isOpen: false });
     } catch (err) {
       console.error('Approval failed:', err);
       
@@ -550,6 +576,7 @@ export function SwapComponent() {
       }
       
       alert(errorMessage);
+      setApprovalModal({ ...approvalModal, isOpen: false });
     }
   };
 
@@ -946,6 +973,16 @@ export function SwapComponent() {
         onSelectToken={(token) => handleTokenSelect(token, 'out')}
         onClose={() => setActiveModal(null)}
         title="Select output token"
+      />
+
+      {/* Approval Modal - Security Feature */}
+      <ApprovalModal
+        isOpen={approvalModal.isOpen}
+        token={approvalModal.token}
+        amount={approvalModal.amount}
+        spender={approvalModal.spender}
+        onApprove={handleApprovalConfirm}
+        onCancel={() => setApprovalModal({ ...approvalModal, isOpen: false })}
       />
     </div>
   );
